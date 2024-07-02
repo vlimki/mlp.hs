@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
       Lib
+      Util
   other-modules:
       Paths_mlp_hs
   autogen-modules:
