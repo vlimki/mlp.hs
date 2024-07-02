@@ -14,8 +14,9 @@ enumerate a = zip a [0..length a]
 sigmoid :: R -> R
 sigmoid x = 1 / (1 + exp (-x))
 
+-- Assuming the argument has alreadh been "sigmoided"
 sigmoid' :: R -> R
-sigmoid' x = sigmoid x * (1 - sigmoid x)
+sigmoid' x = x * (1 - x)
 
 
 -- vector of predictions -> y vector
