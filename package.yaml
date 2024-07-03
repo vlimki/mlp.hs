@@ -22,6 +22,7 @@ description:         Please see the README on GitHub at <https://github.com/vlim
 dependencies:
 - base >= 4.7 && < 5
 - hmatrix
+- random
 
 ghc-options:
 - -Wall
