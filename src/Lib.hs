@@ -14,8 +14,8 @@ module Lib
     , forwardProp
     , backProp
     , eval
-        , trainXOR
-        , printNet
+    , trainXOR
+    , printNet
     ) where
 
 import Numeric.LinearAlgebra
@@ -31,7 +31,7 @@ data Layer = Layer
     , biases :: Matrix R
     , sz:: Int
     , activation :: R -> R
-        , activation' :: R -> R
+    , activation' :: R -> R
     }
 
 type Network = [Layer]

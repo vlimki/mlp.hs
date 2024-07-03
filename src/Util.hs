@@ -47,7 +47,7 @@ mse output target = (1/(2*n)) * totalLoss
 
 -- Converts a matrix into column vectors from its rows
 matrixToRows :: Matrix R -> [Matrix R]
-matrixToRows x = map tr $ map asRow $ toRows x
+matrixToRows x = map (tr . asRow) (toRows x)
 
 clipGradient :: R -> R -> R -> R
 clipGradient minVal maxVal x
