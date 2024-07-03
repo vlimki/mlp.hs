@@ -25,7 +25,6 @@ import Data.List (transpose)
 import System.Random (randomRIO)
 import Control.Monad (replicateM)
 
-
 data Layer = Layer
     { weights :: Matrix R
     , biases :: Matrix R
@@ -68,12 +67,10 @@ fit n x = mapM (\(layer, idx) -> do
     where
         len idx = if idx == 0 then fst (size x) else sz $ n!!(idx - 1)
 
-
 forwardProp :: Network -> Matrix R -> [Matrix R]
 forwardProp n x = scanl (flip activate) x n
 
 -- output is from previous layer (AKA the input to this layer)
--- sigmoid'(input) is sigmoid(input) * (1 - sigmoid(input)) so we can substitute that in place
 calculateDelta :: (Layer, Matrix R, Layer) -> Matrix R -> Matrix R
 calculateDelta (l, output, nextL) deltaNext = (tr (weights nextL) LA.<> deltaNext) * cmap (activation' l) output
 
@@ -95,11 +92,11 @@ backProp n outputs target = zip dW dB
         dB = deltas
 
 -- Network -> [(weight matrix for the l:th layer, bias vector (n x 1 matrix) for the l:th layer
-updateParams :: Network -> [(Matrix R, Matrix R)] -> Network
-updateParams = zipWith (curry (\(l, (dW, dB)) -> Layer {weights=weights l - scale 0.1 dW, biases=biases l - scale 0.1 dB, sz=sz l, activation=activation l, activation' = activation' l}))
+updateParams :: R -> Network -> [(Matrix R, Matrix R)] -> Network
+updateParams lr = zipWith (curry (\(l, (dW, dB)) -> Layer {weights=weights l - scale lr dW, biases=biases l - scale lr dB, sz=sz l, activation=activation l, activation' = activation' l}))
 
-trainStep :: Network -> Matrix R -> Matrix R -> Network
-trainStep n x y = updateParams n totalParams
+trainStep :: Network -> Matrix R -> Matrix R -> R -> Network
+trainStep n x y lr = updateParams lr n totalParams
     where
         inputs = matrixToRows x
         outputs = matrixToRows y
@@ -108,22 +105,23 @@ trainStep n x y = updateParams n totalParams
         totalParams = clipGradients $ map f $ transpose gradients
         f gs = let len = fromIntegral (length gs) in foldl1 (\(accW, accB) (w, b) -> (accW + w / len, accB + b / len)) gs
 
-train :: Network -> Matrix R -> Matrix R -> Int -> Network
-train n _ _ 0 = n
-train n x y epochs = train (trainStep n x y) x y (epochs - 1)
+-- net -> x -> y -> learning rate -> epochs
+train :: Network -> Matrix R -> Matrix R -> R -> Int -> Network
+train n _ _ _ 0 = n
+train n x y lr epochs = train (trainStep n x y lr) x y lr (epochs - 1)
 
 predict :: Network -> Matrix R -> Matrix R
 predict n x = last $ forwardProp n x
 
 trainXOR :: IO Network
 trainXOR = do
-    n1 <- initialize [2, 2, 1] [relu, relu, sigmoid] [relu', relu', sigmoid']
+    n1 <- initialize [4, 1] [relu, sigmoid] [relu', sigmoid']
     n2 <- fit n1 $ head $ matrixToRows xorInput
 
     putStrLn "Initial weights:"
     printNet n2
 
-    let n3 = train n2 xorInput xorOutput 100000
+    let n3 = train n2 xorInput xorOutput 0.1 10000
 
     putStrLn "Final weights:"
     printNet n3

@@ -57,7 +57,7 @@ clipGradient minVal maxVal x
 
 clipGradients :: [(Matrix R, Matrix R)] -> [(Matrix R, Matrix R)]
 clipGradients = map (bimap
-  (cmap (clipGradient (- 5) 5)) (cmap (clipGradient (- 5) 5)))
+  (cmap (clipGradient (- 1) 1)) (cmap (clipGradient (- 1) 1)))
 
 xorInput :: Matrix R
 xorInput = (4><2)

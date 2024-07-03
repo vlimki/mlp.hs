@@ -1,4 +1,4 @@
-- [ ] Create a proper trainer framework for the neural net, also do some type masturbation probably
+- [ ] Create a proper trainer framework for the neural net, also do some type masturbation probably | type (`Trainer`?) that contains all hyperparameters (lr, epochs, etc.)
 - [ ] Add better documentation in the form of comments
 - [ ] Fully learn all the math and how to derive the backprop formulas
 - [ ] Write blog post
