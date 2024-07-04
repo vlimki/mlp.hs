@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Redundant bracket" #-}
 module Util
     ( enumerate
     , sigmoid
@@ -42,7 +40,7 @@ mse :: [Matrix R] -> [Matrix R] -> R
 mse output target = (1/(2*n)) * totalLoss
     where
         totalLoss :: R
-        totalLoss = sum [(sumElements (o - t) ** 2) | (o, t) <- zip output target]
+        totalLoss = sum [sumElements (o - t) ** 2 | (o, t) <- zip output target]
         n = fromIntegral $ fst (size $ head target) :: R
 
 -- Converts a matrix into column vectors from its rows

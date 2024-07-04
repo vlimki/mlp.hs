@@ -26,6 +26,8 @@ source-repository head
 library
   exposed-modules:
       Lib
+      Network
+      Trainer
       Util
   other-modules:
       Paths_mlp_hs
