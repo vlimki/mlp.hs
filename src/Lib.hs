@@ -4,6 +4,9 @@ import Network
 import Trainer
 import Util
 
+-- Training the network to solve the XOR problem.
+-- We have a network architecture that looks like this `input -> l1: 4 neurons -> output: 1 neuron`.
+-- We're using the relu activation function for the hidden layers and the sigmoid activation function for the output layer.
 trainXOR :: IO Network
 trainXOR = do
     n1 <- initialize [4, 1] [relu, sigmoid] [relu', sigmoid']
