@@ -18,6 +18,13 @@ packages:
       size: 1528
   original:
     hackage: random-1.2.1.2
+- completed:
+    hackage: zlib-0.7.1.0@sha256:bae1c5a6092d65c5e763246f91e04fef3f43e37cb055130725c9a973c88a250f,5223
+    pantry-tree:
+      sha256: 4910ead8a8bbbad24e44b8617cf47e25b679c3b16d48156ea67bfe57ec6f9d88
+      size: 1519
+  original:
+    hackage: zlib-0.7.1.0
 snapshots:
 - completed:
     sha256: 8e7996960d864443a66eb4105338bbdd6830377b9f6f99cd5527ef73c10c01e7
