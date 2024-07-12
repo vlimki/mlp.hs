@@ -1,8 +1,40 @@
-module Lib (fit, train, bgdTrainer, initialize, predict, trainXOR) where
+module Lib (fit, train, bgdTrainer, initialize, predict, trainXOR, loadMNIST) where
 
 import Network
 import Trainer
 import Util
+import Codec.Compression.GZip (decompress)
+import Numeric.LinearAlgebra (R, Matrix, (><))
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString as BS
+
+-- Return (input, output)
+loadMNIST :: IO (Matrix R, Matrix R)
+loadMNIST = do
+  trainData <- decompress <$> BL.readFile "./data/train-images-idx3-ubyte.gz"
+  trainLabels <- decompress <$> BL.readFile "./data/train-labels-idx1-ubyte.gz"
+
+  let images = Prelude.concat $ [getImage n (BL.toStrict trainData) | n <- [0..9]]
+  let labels = [getLabel n (BL.toStrict trainLabels) | n <- [0..9]]
+
+  let images' = (Prelude.length labels><784) images
+  let labels' = (Prelude.length labels><1) labels
+  return (images', labels')
+
+-- This code is inspired by https://github.com/ttesmer/haskell-mnist/blob/master/src/Network.hs.
+-- The MNIST dataset is stored in binary, where the first 16 bytes are the header, and every image is 784 bytes (28x28 pixels)
+-- Every byte is a value from 0-255, so we normalize the value to be anywhere between 0 and 1.
+getImage :: Int -> BS.ByteString -> [R]
+getImage n ds = [normalize $ BS.index ds (16 + n * 784 + s) | s <- [0..783]]
+  where normalize x = fromIntegral x / 255
+
+-- The label data is stored so that the first 8 bytes are the header of the file, and every label from there is just 1 bit.
+getLabel :: Int -> BS.ByteString -> R
+getLabel n s = fromIntegral $ BS.index s (n + 8)
+
+-- Training the network to solve the MNIST problem
+--trainMNIST :: IO Network
+--trainMNIST = do
 
 -- Training the network to solve the XOR problem.
 -- We have a network architecture that looks like this `input -> l1: 4 neurons -> output: 1 neuron`.

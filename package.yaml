@@ -24,6 +24,7 @@ dependencies:
 - hmatrix
 - random
 - zlib
+- bytestring
 
 ghc-options:
 - -Wall
