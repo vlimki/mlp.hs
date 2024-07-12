@@ -1,11 +1,11 @@
-module Util (
-  enumerate,
-  mse,
-  matrixToRows,
-  xorInput,
-  xorOutput,
-  clipGradients,
-)
+module Util
+  ( enumerate
+  , mse
+  , matrixToRows
+  , xorInput
+  , xorOutput
+  , clipGradients
+  )
 where
 
 import Data.Bifunctor
@@ -18,10 +18,10 @@ enumerate a = zip a [0 .. length a]
 -- The mean squared error function.
 mse :: [Matrix R] -> [Matrix R] -> R
 mse output target = (1 / (2 * n)) * totalLoss
- where
-  totalLoss :: R
-  totalLoss = sum [sumElements (o - t) ** 2 | (o, t) <- zip output target]
-  n = fromIntegral $ fst (size $ head target) :: R
+  where
+    totalLoss :: R
+    totalLoss = sum [sumElements (o - t) ** 2 | (o, t) <- zip output target]
+    n = fromIntegral $ fst (size $ head target) :: R
 
 -- Converts a matrix into a list of column vectors from its rows
 matrixToRows :: Matrix R -> [Matrix R]

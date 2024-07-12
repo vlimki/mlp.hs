@@ -31,8 +31,8 @@ loadMNIST = do
 -- Every byte is a value from 0-255, so we normalize the value to be anywhere between 0 and 1.
 getImage :: Int -> BS.ByteString -> [R]
 getImage n ds = [normalize $ BS.index ds (16 + n * 784 + s) | s <- [0 .. 783]]
- where
-  normalize x = fromIntegral x / 255
+  where
+    normalize x = fromIntegral x / 255
 
 -- The label data is stored so that the first 8 bytes are the header of the file, and every label from there is just 1 bit.
 getLabel :: Int -> BS.ByteString -> R

@@ -1,18 +1,18 @@
-module Network.Network (
-  Network,
-  Layer,
-  initialize,
-  fit,
-  weights,
-  biases,
-  predict,
-  updateParams,
-  forwardProp,
-  backProp,
-  eval,
-  printNet,
-  Activation,
-)
+module Network.Network
+  ( Network
+  , Layer
+  , initialize
+  , fit
+  , weights
+  , biases
+  , predict
+  , updateParams
+  , forwardProp
+  , backProp
+  , eval
+  , printNet
+  , Activation
+  )
 where
 
 import Control.Monad (replicateM)
@@ -83,8 +83,8 @@ fit x n =
         return layer{weights = w, biases = b}
     )
     (enumerate n)
- where
-  len idx = if idx == 0 then fst (size x) else sz $ n !! (idx - 1)
+  where
+    len idx = if idx == 0 then fst (size x) else sz $ n !! (idx - 1)
 
 -- Surprisingly short code for a forward propagation function - `scanl` iterates through the layers and activates them with the output of the previous layer.
 -- It's equivalent to `scanl (flip activate) input network`, where `input` is the initial value that `activate` gets called on.
@@ -100,18 +100,18 @@ calculateDelta (l, input, nextL) deltaNext = (tr (weights nextL) LA.<> deltaNext
 -- target = the target output
 backProp :: [Matrix R] -> Matrix R -> Network -> [(Matrix R, Matrix R)]
 backProp outputs target n = zip dW dB
- where
-  outputError = (last outputs - target) * derivative (activation (last n)) (last outputs)
+  where
+    outputError = (last outputs - target) * derivative (activation (last n)) (last outputs)
 
-  reversedLayers = tail $ reverse n
-  reversedOutputs = tail $ reverse outputs
-  reversedNextLayers = reverse $ tail n
+    reversedLayers = tail $ reverse n
+    reversedOutputs = tail $ reverse outputs
+    reversedNextLayers = reverse $ tail n
 
-  layersWithOutputs = zip3 reversedLayers reversedOutputs reversedNextLayers
-  deltas = reverse $ scanl (flip calculateDelta) outputError layersWithOutputs
+    layersWithOutputs = zip3 reversedLayers reversedOutputs reversedNextLayers
+    deltas = reverse $ scanl (flip calculateDelta) outputError layersWithOutputs
 
-  dW = [delta LA.<> tr out | (delta, out) <- zip deltas (init outputs)]
-  dB = deltas
+    dW = [delta LA.<> tr out | (delta, out) <- zip deltas (init outputs)]
+    dB = deltas
 
 -- This maps through the layers structures and replaces them with new ones with slightly adjusted parameters.
 -- params = [(weight matrix for the l:th layer, bias vector for the l:th layer)]
@@ -134,5 +134,5 @@ printNet =
 -- Test the accuracy of the model with the mean squared error loss function.
 eval :: Network -> [Matrix R] -> [Matrix R] -> R
 eval n x = mse output
- where
-  output = map (`predict` n) x
+  where
+    output = map (`predict` n) x

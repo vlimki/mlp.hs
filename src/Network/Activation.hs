@@ -36,13 +36,13 @@ fRelu' = cmap (\x -> if x < 0 then 0.01 else 1)
 -- The softmax activation function
 fSoftmax :: Matrix R -> Matrix R
 fSoftmax mat = scale (1 / s) exps
- where
-  s = sumElements exps
-  exps = cmap exp mat
+  where
+    s = sumElements exps
+    exps = cmap exp mat
 
 fSoftmax' :: Matrix R -> Matrix R
 fSoftmax' mat = diagS - outerS
- where
-  s = flatten $ fSoftmax mat
-  diagS = diag s
-  outerS = outer s s
+  where
+    s = flatten $ fSoftmax mat
+    diagS = diag s
+    outerS = outer s s
