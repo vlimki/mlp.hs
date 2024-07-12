@@ -42,7 +42,7 @@ getLabel n s = fromIntegral $ BS.index s (n + 8)
 trainMNIST :: IO Network
 trainMNIST = do
   (x, y) <- loadMNIST
-  n1 <- initialize [512, 256, 10] [relu, relu, softmax] [relu', relu', softmax']
+  n1 <- initialize [512, 256, 10] [reluActivation, reluActivation, softmaxActivation]
   n2 <- fit (head $ matrixToRows x) n1
 
   let t = bgdTrainer 0.1 100
@@ -60,7 +60,7 @@ trainMNIST = do
 -- We're using the relu activation function for the hidden layers and the sigmoid activation function for the output layer.
 trainXOR :: IO Network
 trainXOR = do
-  n1 <- initialize [4, 1] [relu, sigmoid] [relu', sigmoid']
+  n1 <- initialize [4, 1] [reluActivation, sigmoidActivation]
   n2 <- fit (head $ matrixToRows xorInput) n1
 
   putStrLn "Initial weights:"
