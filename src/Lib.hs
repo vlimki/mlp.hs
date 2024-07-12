@@ -36,7 +36,9 @@ getImage n ds = [normalize $ BS.index ds (16 + n * 784 + s) | s <- [0..783]]
 getLabel :: Int -> BS.ByteString -> R
 getLabel n s = fromIntegral $ BS.index s (n + 8)
 
--- Training the network to solve the MNIST problem
+-- Training the network to solve the MNIST problem.
+-- The network architecture is input: 784 (or 28*28) pixel values -> layer 1: 512 neurons -> layer 2: 256 neurons -> output: 10 neurons
+-- We're using the softmax function here since we're doing multi-class classification.
 trainMNIST :: IO Network
 trainMNIST = do
   (x, y) <- loadMNIST
