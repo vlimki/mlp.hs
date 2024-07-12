@@ -1,4 +1,4 @@
-module Trainer (
+module Network.Trainer (
   Trainer,
   train,
   learningRate,
@@ -7,7 +7,7 @@ module Trainer (
 ) where
 
 import Data.List (transpose)
-import Network
+import Network.Network
 import Numeric.LinearAlgebra
 import Util
 

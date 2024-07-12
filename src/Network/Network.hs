@@ -1,8 +1,6 @@
-module Network
+module Network.Network
   ( Network,
     Layer,
-    sigmoid,
-    sigmoid',
     initialize,
     fit,
     weights,
@@ -14,22 +12,15 @@ module Network
     eval,
     printNet,
     Activation,
-    sigmoidActivation,
-    reluActivation,
-    softmaxActivation,
   )
 where
 
 import Control.Monad (replicateM)
+import Network.Activation
 import Numeric.LinearAlgebra
 import qualified Numeric.LinearAlgebra as LA
 import System.Random (randomRIO)
-import Util (enumerate, mse, sigmoid, sigmoid', relu, relu', softmax, softmax')
-
-data Activation = Activation {
-  function :: Matrix R -> Matrix R,
-  derivative :: Matrix R -> Matrix R
-}
+import Util (enumerate, mse)
 
 -- The layer type. The parameters in the network are stored on a layer basis.
 -- weights     = weight matrix
@@ -43,15 +34,6 @@ data Layer = Layer
     sz :: Int,
     activation :: Activation
   }
-
-sigmoidActivation :: Activation
-sigmoidActivation = Activation {function=sigmoid, derivative=sigmoid'}
-
-reluActivation :: Activation
-reluActivation = Activation {function=relu, derivative=relu'}
-
-softmaxActivation :: Activation
-softmaxActivation = Activation {function=softmax, derivative=softmax'}
 
 -- A network is just a list of layers.
 type Network = [Layer]
@@ -126,7 +108,7 @@ calculateDelta (l, input, nextL) deltaNext = (tr (weights nextL) LA.<> deltaNext
 backProp :: [Matrix R] -> Matrix R -> Network -> [(Matrix R, Matrix R)]
 backProp outputs target n = zip dW dB
   where
-    outputError = (last outputs - target) * sigmoid' (last outputs)
+    outputError = (last outputs - target) * derivative (activation (last n)) (last outputs)
 
     reversedLayers = tail $ reverse n
     reversedOutputs = tail $ reverse outputs
