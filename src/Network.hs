@@ -32,8 +32,8 @@ data Layer = Layer
   { weights :: Matrix R,
     biases :: Matrix R,
     sz :: Int,
-    activation :: R -> R,
-    activation' :: R -> R
+    activation :: Matrix R -> Matrix R,
+    activation' :: Matrix R -> Matrix R
   }
 
 -- A network is just a list of layers.
@@ -44,7 +44,7 @@ type Network = [Layer]
 -- z = w.
 -- The activation function is applied on an element basis to the output vector.
 activate :: Layer -> Matrix R -> Matrix R
-activate l x = cmap (activation l) (weights l LA.<> x + biases l)
+activate l x = activation l (weights l LA.<> x + biases l)
 
 -- The xavier weight initialization method. It works well with the sigmoid activation function.
 -- n = the number of neurons
@@ -71,7 +71,7 @@ initBiases n = do
 
 -- Initialize the network. Note that the dimensions of the weight and bias matrices aren't calculated here yet.
 -- This only initializes the layer structures with their intended numbers of neurons and activation functions.
-initialize :: [Int] -> [R -> R] -> [R -> R] -> IO Network
+initialize :: [Int] -> [Matrix R -> Matrix R] -> [Matrix R -> Matrix R] -> IO Network
 initialize s f d =
   mapM
     ( \(x, idx) -> do
@@ -101,7 +101,7 @@ forwardProp = scanl (flip activate)
 
 -- (l, input, nextL) = (the current layer, the output of the from the previous layer, the next layer
 calculateDelta :: (Layer, Matrix R, Layer) -> Matrix R -> Matrix R
-calculateDelta (l, input, nextL) deltaNext = (tr (weights nextL) LA.<> deltaNext) * cmap (activation' l) input
+calculateDelta (l, input, nextL) deltaNext = (tr (weights nextL) LA.<> deltaNext) * activation' l input
 
 -- The backpropagation algorithm returns a list of tuples with weights and biases for every layer.
 -- outputs = the output from the forwardProp function - so a list of output vectors
@@ -109,7 +109,7 @@ calculateDelta (l, input, nextL) deltaNext = (tr (weights nextL) LA.<> deltaNext
 backProp :: [Matrix R] -> Matrix R -> Network -> [(Matrix R, Matrix R)]
 backProp outputs target n = zip dW dB
   where
-    outputError = (last outputs - target) * cmap sigmoid' (last outputs)
+    outputError = (last outputs - target) * sigmoid' (last outputs)
 
     reversedLayers = tail $ reverse n
     reversedOutputs = tail $ reverse outputs

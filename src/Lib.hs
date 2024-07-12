@@ -1,12 +1,16 @@
-module Lib (fit, train, bgdTrainer, initialize, predict, trainXOR, loadMNIST) where
+module Lib (fit, train, bgdTrainer, initialize, predict, trainXOR, loadMNIST, trainMNIST, convertToSoftmax) where
 
 import Network
 import Trainer
 import Util
 import Codec.Compression.GZip (decompress)
-import Numeric.LinearAlgebra (R, Matrix, (><))
+import Numeric.LinearAlgebra (R, Matrix, (><), fromLists)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as BS
+
+-- Takes a 1x1 matrix (e.g [5.0]) and converts it to the softmax format (e.g [0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
+convertToSoftmax :: R -> [R]
+convertToSoftmax val = [if x == val then 1.0 else 0.0 | x <- [1..10]]
 
 -- Return (input, output)
 loadMNIST :: IO (Matrix R, Matrix R)
@@ -18,7 +22,7 @@ loadMNIST = do
   let labels = [getLabel n (BL.toStrict trainLabels) | n <- [0..9]]
 
   let images' = (Prelude.length labels><784) images
-  let labels' = (Prelude.length labels><1) labels
+  let labels' = fromLists $ map convertToSoftmax labels
   return (images', labels')
 
 -- This code is inspired by https://github.com/ttesmer/haskell-mnist/blob/master/src/Network.hs.
@@ -33,8 +37,21 @@ getLabel :: Int -> BS.ByteString -> R
 getLabel n s = fromIntegral $ BS.index s (n + 8)
 
 -- Training the network to solve the MNIST problem
---trainMNIST :: IO Network
---trainMNIST = do
+trainMNIST :: IO Network
+trainMNIST = do
+  (x, y) <- loadMNIST
+  n1 <- initialize [512, 256, 10] [relu, relu, softmax] [relu', relu', softmax']
+  n2 <- fit (head $ matrixToRows x) n1
+
+  let t = bgdTrainer 0.1 100
+  let n3 = train t n2 x y
+
+  mapM_ (\(input, output) -> putStrLn $ "Target: " ++ show output ++ ", Output: " ++ show (predict input n3)) $ zip (matrixToRows x) (matrixToRows y)
+
+  let loss = eval n3 (matrixToRows x) (matrixToRows y)
+  putStrLn $ "Loss: " ++ show loss
+
+  return n3
 
 -- Training the network to solve the XOR problem.
 -- We have a network architecture that looks like this `input -> l1: 4 neurons -> output: 1 neuron`.

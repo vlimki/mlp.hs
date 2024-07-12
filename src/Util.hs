@@ -9,6 +9,8 @@ module Util (
   relu,
   relu',
   clipGradients,
+  softmax, 
+  softmax'
 )
 where
 
@@ -20,25 +22,35 @@ enumerate :: [a] -> [(a, Int)]
 enumerate a = zip a [0 .. length a]
 
 -- The sigmoid function.
-sigmoid :: R -> R
-sigmoid x = 1 / (1 + exp (-x))
+sigmoid :: Matrix R -> Matrix R
+sigmoid = cmap (\x -> 1 / (1 + exp (-x)))
 
 -- The sigmoid derivative is defined as sigmoid(x) * (1 - sigmoid(x)).
 -- Here we just assume the argument to the function has already been "sigmoided" - as it is when calling this function in the network.
-sigmoid' :: R -> R
-sigmoid' x = x * (1 - x)
+sigmoid' :: Matrix R -> Matrix R
+sigmoid' = cmap (\x -> x * (1 - x))
 
 -- The ReLU activation function. This is actually the leaky ReLU function to avoid the "dying ReLU" problem.
-relu :: R -> R
-relu x
-  | x < 0 = 0.01 * x
-  | otherwise = x
+relu :: Matrix R -> Matrix R
+relu = cmap (\x -> if x < 0 then 0.01 * x else x)
 
 -- The derivative for leaky ReLU.
-relu' :: R -> R
-relu' x
-  | x < 0 = 0.01
-  | otherwise = 1
+relu' :: Matrix R -> Matrix R
+relu' = cmap (\x -> if x < 0 then 0.01 else 1)
+
+-- The softmax activation function
+softmax :: Matrix R -> Matrix R
+softmax mat = scale (1/ s) exps
+  where 
+    s = sumElements exps
+    exps = cmap exp mat
+
+softmax' :: Matrix R -> Matrix R
+softmax' mat = diagS - outerS
+  where 
+    s = flatten $ softmax mat
+    diagS = diag s
+    outerS = outer s s
 
 -- The mean squared error function.
 mse :: [Matrix R] -> [Matrix R] -> R
