@@ -2,21 +2,19 @@ module Network.Activation (Activation, sigmoid, relu, softmax, derivative, funct
 
 import Numeric.LinearAlgebra
 
-data Activation = Activation {
-  function :: Matrix R -> Matrix R,
-  derivative :: Matrix R -> Matrix R
-}
-
+data Activation = Activation
+  { function :: Matrix R -> Matrix R
+  , derivative :: Matrix R -> Matrix R
+  }
 
 sigmoid :: Activation
-sigmoid = Activation {function=fSigmoid, derivative=fSigmoid'}
+sigmoid = Activation{function = fSigmoid, derivative = fSigmoid'}
 
 relu :: Activation
-relu = Activation {function=fRelu, derivative=fRelu'}
+relu = Activation{function = fRelu, derivative = fRelu'}
 
 softmax :: Activation
-softmax = Activation {function=fSoftmax, derivative=fSoftmax'}
-
+softmax = Activation{function = fSoftmax, derivative = fSoftmax'}
 
 -- The sigmoid function.
 fSigmoid :: Matrix R -> Matrix R
@@ -37,14 +35,14 @@ fRelu' = cmap (\x -> if x < 0 then 0.01 else 1)
 
 -- The softmax activation function
 fSoftmax :: Matrix R -> Matrix R
-fSoftmax mat = scale (1/ s) exps
-  where 
-    s = sumElements exps
-    exps = cmap exp mat
+fSoftmax mat = scale (1 / s) exps
+ where
+  s = sumElements exps
+  exps = cmap exp mat
 
 fSoftmax' :: Matrix R -> Matrix R
 fSoftmax' mat = diagS - outerS
-  where 
-    s = flatten $ fSoftmax mat
-    diagS = diag s
-    outerS = outer s s
+ where
+  s = flatten $ fSoftmax mat
+  diagS = diag s
+  outerS = outer s s

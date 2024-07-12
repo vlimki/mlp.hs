@@ -1,17 +1,17 @@
 module Lib (fit, train, bgdTrainer, initialize, predict, trainXOR, loadMNIST, trainMNIST, convertToSoftmax) where
 
-import Network.Network
-import Network.Activation
-import Network.Trainer
-import Util
 import Codec.Compression.GZip (decompress)
-import Numeric.LinearAlgebra (R, Matrix, (><), fromLists)
-import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BL
+import Network.Activation
+import Network.Network
+import Network.Trainer
+import Numeric.LinearAlgebra (Matrix, R, fromLists, (><))
+import Util
 
 -- Takes a 1x1 matrix (e.g [5.0]) and converts it to the softmax format (e.g [0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
 convertToSoftmax :: R -> [R]
-convertToSoftmax val = [if x == val then 1.0 else 0.0 | x <- [1..10]]
+convertToSoftmax val = [if x == val then 1.0 else 0.0 | x <- [1 .. 10]]
 
 -- Return (input, output)
 loadMNIST :: IO (Matrix R, Matrix R)
@@ -19,10 +19,10 @@ loadMNIST = do
   trainData <- decompress <$> BL.readFile "./data/train-images-idx3-ubyte.gz"
   trainLabels <- decompress <$> BL.readFile "./data/train-labels-idx1-ubyte.gz"
 
-  let images = Prelude.concat $ [getImage n (BL.toStrict trainData) | n <- [0..9]]
-  let labels = [getLabel n (BL.toStrict trainLabels) | n <- [0..9]]
+  let images = Prelude.concat $ [getImage n (BL.toStrict trainData) | n <- [0 .. 9]]
+  let labels = [getLabel n (BL.toStrict trainLabels) | n <- [0 .. 9]]
 
-  let images' = (Prelude.length labels><784) images
+  let images' = (Prelude.length labels >< 784) images
   let labels' = fromLists $ map convertToSoftmax labels
   return (images', labels')
 
@@ -30,8 +30,9 @@ loadMNIST = do
 -- The MNIST dataset is stored in binary, where the first 16 bytes are the header, and every image is 784 bytes (28x28 pixels)
 -- Every byte is a value from 0-255, so we normalize the value to be anywhere between 0 and 1.
 getImage :: Int -> BS.ByteString -> [R]
-getImage n ds = [normalize $ BS.index ds (16 + n * 784 + s) | s <- [0..783]]
-  where normalize x = fromIntegral x / 255
+getImage n ds = [normalize $ BS.index ds (16 + n * 784 + s) | s <- [0 .. 783]]
+ where
+  normalize x = fromIntegral x / 255
 
 -- The label data is stored so that the first 8 bytes are the header of the file, and every label from there is just 1 bit.
 getLabel :: Int -> BS.ByteString -> R

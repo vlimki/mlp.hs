@@ -1,18 +1,18 @@
-module Network.Network
-  ( Network,
-    Layer,
-    initialize,
-    fit,
-    weights,
-    biases,
-    predict,
-    updateParams,
-    forwardProp,
-    backProp,
-    eval,
-    printNet,
-    Activation,
-  )
+module Network.Network (
+  Network,
+  Layer,
+  initialize,
+  fit,
+  weights,
+  biases,
+  predict,
+  updateParams,
+  forwardProp,
+  backProp,
+  eval,
+  printNet,
+  Activation,
+)
 where
 
 import Control.Monad (replicateM)
@@ -29,21 +29,14 @@ import Util (enumerate, mse)
 -- activation  = the activation function
 -- activation' = the derivative of the activation function
 data Layer = Layer
-  { weights :: Matrix R,
-    biases :: Matrix R,
-    sz :: Int,
-    activation :: Activation
+  { weights :: Matrix R
+  , biases :: Matrix R
+  , sz :: Int
+  , activation :: Activation
   }
 
 -- A network is just a list of layers.
 type Network = [Layer]
-
--- The `activate` function is basically just g(z), where:
--- g = the activation function of the layer
--- z = w.
--- The activation function is applied on an element basis to the output vector.
---activate :: Layer -> Matrix R -> Matrix R
---activate l x = activation l (weights l LA.<> x + biases l)
 
 -- The xavier weight initialization method. It works well with the sigmoid activation function.
 -- n = the number of neurons
@@ -76,7 +69,7 @@ initialize s f =
     ( \(x, idx) -> do
         let w = initWeights 0 0
         b <- initBiases 0
-        return Layer {weights = w, biases = b, sz = x, activation = f!!idx}
+        return Layer{weights = w, biases = b, sz = x, activation = f !! idx}
     )
     $ enumerate s
 
@@ -87,11 +80,11 @@ fit x n =
     ( \(layer, idx) -> do
         w <- xavierInit (sz layer) (len idx)
         b <- initBiases $ sz layer
-        return layer {weights = w, biases = b}
+        return layer{weights = w, biases = b}
     )
     (enumerate n)
-  where
-    len idx = if idx == 0 then fst (size x) else sz $ n !! (idx - 1)
+ where
+  len idx = if idx == 0 then fst (size x) else sz $ n !! (idx - 1)
 
 -- Surprisingly short code for a forward propagation function - `scanl` iterates through the layers and activates them with the output of the previous layer.
 -- It's equivalent to `scanl (flip activate) input network`, where `input` is the initial value that `activate` gets called on.
@@ -107,23 +100,23 @@ calculateDelta (l, input, nextL) deltaNext = (tr (weights nextL) LA.<> deltaNext
 -- target = the target output
 backProp :: [Matrix R] -> Matrix R -> Network -> [(Matrix R, Matrix R)]
 backProp outputs target n = zip dW dB
-  where
-    outputError = (last outputs - target) * derivative (activation (last n)) (last outputs)
+ where
+  outputError = (last outputs - target) * derivative (activation (last n)) (last outputs)
 
-    reversedLayers = tail $ reverse n
-    reversedOutputs = tail $ reverse outputs
-    reversedNextLayers = reverse $ tail n
+  reversedLayers = tail $ reverse n
+  reversedOutputs = tail $ reverse outputs
+  reversedNextLayers = reverse $ tail n
 
-    layersWithOutputs = zip3 reversedLayers reversedOutputs reversedNextLayers
-    deltas = reverse $ scanl (flip calculateDelta) outputError layersWithOutputs
+  layersWithOutputs = zip3 reversedLayers reversedOutputs reversedNextLayers
+  deltas = reverse $ scanl (flip calculateDelta) outputError layersWithOutputs
 
-    dW = [delta LA.<> tr out | (delta, out) <- zip deltas (init outputs)]
-    dB = deltas
+  dW = [delta LA.<> tr out | (delta, out) <- zip deltas (init outputs)]
+  dB = deltas
 
 -- This maps through the layers structures and replaces them with new ones with slightly adjusted parameters.
 -- params = [(weight matrix for the l:th layer, bias vector for the l:th layer)]
 updateParams :: R -> [(Matrix R, Matrix R)] -> Network -> Network
-updateParams lr params n = zipWith (curry (\(l, (dW, dB)) -> Layer {weights = weights l - scale lr dW, biases = biases l - scale lr dB, sz = sz l, activation = activation l})) n params
+updateParams lr params n = zipWith (curry (\(l, (dW, dB)) -> Layer{weights = weights l - scale lr dW, biases = biases l - scale lr dB, sz = sz l, activation = activation l})) n params
 
 -- This just takes the last element of the output of the `forwardProp` function - so the output of the network.
 predict :: Matrix R -> Network -> Matrix R
@@ -141,5 +134,5 @@ printNet =
 -- Test the accuracy of the model with the mean squared error loss function.
 eval :: Network -> [Matrix R] -> [Matrix R] -> R
 eval n x = mse output
-  where
-    output = map (`predict` n) x
+ where
+  output = map (`predict` n) x
