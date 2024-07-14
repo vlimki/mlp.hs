@@ -1,4 +1,4 @@
-module Lib (fit, train, bgdTrainer, initialize, predict, trainXOR, loadMNIST, trainMNIST, convertToSoftmax) where
+module Lib (fit, train, bgdTrainer, initialize, predict, trainXOR, loadMNIST, trainMNIST, convertToSoftmax, saveParameters) where
 
 import Codec.Compression.GZip (decompress)
 import qualified Data.ByteString as BS
@@ -8,6 +8,7 @@ import Network.Network
 import Network.Trainer
 import Numeric.LinearAlgebra (Matrix, R, fromLists, (><))
 import Util
+import System.IO
 
 -- Takes a 1x1 matrix (e.g [5.0]) and converts it to the softmax format (e.g [0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
 convertToSoftmax :: R -> [R]
@@ -57,6 +58,22 @@ trainMNIST = do
 
   return n3
 
+-- Initialize a network based on pre-loaded parameters.
+-- How do we save weights in a file? Well, we could literally just save them using `show` and `read` since hmatrix supports them.
+-- So we need to save an array of weight matrices and an array of bias matrices. We can get the format we want using `show $ map weights <network>`
+--loadParameters :: String -> IO Network
+--loadParameters wPath bPath = do
+--  wData <- hGetContents wPath
+--  bData <- hGetContents bPath
+
+saveParameters :: FilePath -> FilePath -> Network -> IO ()
+saveParameters wPath bPath n = do
+  let w = show $ map weights n
+  let b = show $ map biases n
+
+  writeFile wPath w
+  writeFile bPath b
+  return ()
 -- Training the network to solve the XOR problem.
 -- We have a network architecture that looks like this `input -> l1: 4 neurons -> output: 1 neuron`.
 -- We're using the relu activation function for the hidden layers and the sigmoid activation function for the output layer.
@@ -68,7 +85,7 @@ trainXOR = do
   putStrLn "Initial weights:"
   printNet n2
 
-  let t = bgdTrainer 0.1 10000
+  let t = bgdTrainer 0.1 100000
   let n3 = train t n2 xorInput xorOutput
 
   putStrLn "Final weights:"
