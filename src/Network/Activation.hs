@@ -41,8 +41,4 @@ fSoftmax mat = scale (1 / s) exps
     exps = cmap exp mat
 
 fSoftmax' :: Matrix R -> Matrix R
-fSoftmax' mat = diagS - outerS
-  where
-    s = flatten $ fSoftmax mat
-    diagS = diag s
-    outerS = outer s s
+fSoftmax' _ = id
