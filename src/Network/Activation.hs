@@ -41,4 +41,4 @@ fSoftmax mat = scale (1 / s) exps
     exps = cmap exp mat
 
 fSoftmax' :: Matrix R -> Matrix R
-fSoftmax' _ = id
+fSoftmax' = id
