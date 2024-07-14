@@ -17,8 +17,8 @@ convertToSoftmax val = [if x == val then 1.0 else 0.0 | x <- [1 .. 10]]
 -- Return (input, output)
 loadMNIST :: IO (Matrix R, Matrix R)
 loadMNIST = do
-  trainData <- decompress <$> BL.readFile "./data/train-images-idx3-ubyte.gz"
-  trainLabels <- decompress <$> BL.readFile "./data/train-labels-idx1-ubyte.gz"
+  trainData <- decompress <$> BL.readFile "./data/mnist/train-images-idx3-ubyte.gz"
+  trainLabels <- decompress <$> BL.readFile "./data/mnist/train-labels-idx1-ubyte.gz"
 
   let images = Prelude.concat $ [getImage n (BL.toStrict trainData) | n <- [0 .. 9]]
   let labels = [getLabel n (BL.toStrict trainLabels) | n <- [0 .. 9]]
