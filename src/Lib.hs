@@ -1,4 +1,4 @@
-module Lib (fit, train, bgdTrainer, initialize, predict, trainXOR, loadMNIST, trainMNIST, convertToSoftmax, saveParameters) where
+module Lib (fit, train, bgdTrainer, initialize, predict, trainXOR, loadMNIST, trainMNIST, convertToSoftmax, saveParameters, loadParameters) where
 
 import Codec.Compression.GZip (decompress)
 import qualified Data.ByteString as BS
@@ -6,7 +6,7 @@ import qualified Data.ByteString.Lazy as BL
 import Network.Activation
 import Network.Network
 import Network.Trainer
-import Numeric.LinearAlgebra (Matrix, R, fromLists, (><))
+import Numeric.LinearAlgebra (Matrix, R, fromLists, (><), size)
 import Util
 import System.IO
 
@@ -61,10 +61,16 @@ trainMNIST = do
 -- Initialize a network based on pre-loaded parameters.
 -- How do we save weights in a file? Well, we could literally just save them using `show` and `read` since hmatrix supports them.
 -- So we need to save an array of weight matrices and an array of bias matrices. We can get the format we want using `show $ map weights <network>`
---loadParameters :: String -> IO Network
---loadParameters wPath bPath = do
---  wData <- hGetContents wPath
---  bData <- hGetContents bPath
+-- Upon further inspection it looks like `hmatrix` already exports functions called `saveMatrix` and `readMatrix`. Well, too bad
+loadParameters :: String -> String -> [Activation] -> IO [Layer]
+loadParameters wPath bPath activations = do
+  fWeights <- openFile wPath ReadMode
+  fBiases <- openFile bPath ReadMode
+  wData <- hGetContents fWeights
+  bData <- hGetContents fBiases
+  let ws = read wData :: [Matrix R]
+  let bs = read bData :: [Matrix R]
+  return $ zipWith3 (\w b a -> Layer{activation=a, weights=w, biases=b, sz=snd (size b)}) ws bs activations
 
 saveParameters :: FilePath -> FilePath -> Network -> IO ()
 saveParameters wPath bPath n = do

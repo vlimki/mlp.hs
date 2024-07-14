@@ -1,10 +1,8 @@
 module Network.Network
   ( Network
-  , Layer
+  , Layer(..)
   , initialize
   , fit
-  , weights
-  , biases
   , predict
   , updateParams
   , forwardProp
