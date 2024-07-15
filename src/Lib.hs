@@ -10,7 +10,7 @@ import Network.Trainer
 import Numeric.LinearAlgebra (Matrix, R, fromLists, (><), size)
 import Util
 import System.IO
-import Control.Parallel.Strategies (rdeepseq, parMap)
+import Control.Parallel.Strategies (rdeepseq, parMap, parListChunk, using)
 import Control.Monad (foldM)
 import Control.DeepSeq (deepseq)
 
@@ -35,12 +35,13 @@ loadMNIST = do
   let !lbls = BL.toStrict trainLabels
   let !imgs = BL.toStrict trainData
 
-  let !images = chunks batchSize $ [getImage n imgs | n <- [0 .. 999]]
-  let !labels = chunks batchSize $ [getLabel n lbls | n <- [0 .. 999]]
+  let !images = chunks batchSize $ [getImage n imgs | n <- [0 .. 59999]]
+  let !labels = chunks batchSize $ [getLabel n lbls | n <- [0 .. 59999]]
 
   let !images' = map (\c -> (batchSize >< 784) $! concat c) images
   let !labels' = map (\c -> fromLists $! map convertToSoftmax c) labels
-  return $ zip images' labels'
+  images' `deepseq` labels' `deepseq` return (zip images' labels')
+  --return $ zip images' labels'
 
 -- This code is inspired by https://github.com/ttesmer/haskell-mnist/blob/master/src/Network.hs.
 -- The MNIST dataset is stored in binary, where the first 16 bytes are the header, and every image is 784 bytes (28x28 pixels)
@@ -69,24 +70,28 @@ trainEpoch t cs n = do
 -- We're using the softmax function here since we're doing multi-class classification.
 trainMNIST :: IO Network
 trainMNIST = do
+  putStrLn "Loading dataset..."
   !cs <- loadMNIST
-  putStrLn "Dataset loaded"
+  putStrLn "Dataset loaded."
+  putStrLn "Initializing network..."
   !n1 <- initialize [512, 256, 10] [relu, relu, softmax]
   !n2 <- fit (head $ matrixToRows $ fst $ head cs) n1
 
-  let t = bgdTrainer 0.05 1
-  putStrLn "Network initialized"
+  let t = bgdTrainer 0.1 1
+  putStrLn "Network initialized."
 
+  putStrLn "Training network..."
   !n3 <- foldM (\net epoch -> do
-    putStrLn $ "Epoch: " ++ show epoch
+    putStrLn $ "Epoch " ++ show epoch ++ "/50"
     net' <- trainEpoch t cs net
     net' `deepseq` return net') n2 [1..50 :: Int]
 
-  putStrLn "Network trained"
+  putStrLn "Network trained."
 
   --let loss = eval n3 (matrixToRows x) (matrixToRows y)
   --putStrLn $ "Loss: " ++ show loss
 
+  putStrLn "Saving paremeters..."
   saveParameters "./data/weights-mnist" "./data/biases-mnist" n3
   putStrLn "Parameters saved. Done."
 
