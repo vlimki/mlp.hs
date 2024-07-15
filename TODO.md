@@ -1,7 +1,8 @@
 - [ ] Mini-batch SGD interface for Trainer
+- [ ] Improve MNIST performance by A LOT (current: 6671/10000) (batch normalization? dropout? ADAM? increasing network complexity? hyperparameter tuning)
+- [ ] Fix parallelization issues. Runs out of RAM instantly when running on more than 1 core. Only trains properly with `stack ghci`. Learn more about Haskell parallelization and lazy/strict evaluation
 - [ ] Proper evaluation framework for the network
 - [ ] Optimizers, gradient boosting, momentum, etc.?
-- [ ] Train on MNIST (include in blog post). Maybe the title is gonna be something like "Digit Recognition From Scratch in Haskell"
 - [ ] Fully learn all the math and how to derive the backprop formulas
 - [ ] Write blog post
 
@@ -12,3 +13,4 @@
 - [x] Activation function type
 - [x] Implement feature to be able to save parameters to disk so there's no need to re-train the network each time
 - [x] Parallelization
+- [x] Train on MNIST 
