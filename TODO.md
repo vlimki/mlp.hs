@@ -1,4 +1,4 @@
-- [ ] Parallelization
+- [ ] Mini-batch SGD interface for Trainer
 - [ ] Optimizers, gradient boosting, momentum, etc.?
 - [ ] Train on MNIST (include in blog post). Maybe the title is gonna be something like "Digit Recognition From Scratch in Haskell"
 - [ ] Fully learn all the math and how to derive the backprop formulas
@@ -10,3 +10,4 @@
 - [x] Framework for training on MNIST
 - [x] Activation function type
 - [x] Implement feature to be able to save parameters to disk so there's no need to re-train the network each time
+- [x] Parallelization
