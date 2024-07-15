@@ -1,4 +1,5 @@
 - [ ] Mini-batch SGD interface for Trainer
+- [ ] Proper evaluation framework for the network
 - [ ] Optimizers, gradient boosting, momentum, etc.?
 - [ ] Train on MNIST (include in blog post). Maybe the title is gonna be something like "Digit Recognition From Scratch in Haskell"
 - [ ] Fully learn all the math and how to derive the backprop formulas
