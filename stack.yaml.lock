@@ -47,6 +47,13 @@ packages:
   original:
     hackage: deepseq-1.5.0.0
 - completed:
+    hackage: parallel-3.2.2.0@sha256:b9cf0b07fdff16f503487a4daa1e40a1f1f6c10974b4f15d6dfd5f243a643e31,1942
+    pantry-tree:
+      sha256: d11d5b1b05b66f86a794825253c16aac6c0a2a2cfd213007647c05c73eeb2c0e
+      size: 392
+  original:
+    hackage: parallel-3.2.2.0
+- completed:
     hackage: binary-0.8.9.2@sha256:03381e511429c44d13990c6d76281c4fc2468371cede4fe684b0c98d9b7d5f5a,6611
     pantry-tree:
       sha256: 7fac13c81b45416bd082c34e31cc3ac19226dd15354f379156922ad4cfbe6285

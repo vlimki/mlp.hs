@@ -10,6 +10,7 @@ import Network.Trainer
 import Numeric.LinearAlgebra (Matrix, R, fromLists, (><), size)
 import Util
 import System.IO
+import Control.Parallel.Strategies (rdeepseq, parMap)
 import Control.Monad (foldM)
 import Control.DeepSeq (deepseq)
 
@@ -29,13 +30,13 @@ loadMNIST = do
   trainData <- decompress <$> BL.readFile "./data/mnist/train-images-idx3-ubyte.gz"
   trainLabels <- decompress <$> BL.readFile "./data/mnist/train-labels-idx1-ubyte.gz"
 
-  let batchSize = 100
+  let batchSize = 1000
 
   let !lbls = BL.toStrict trainLabels
   let !imgs = BL.toStrict trainData
 
-  let !images = chunks batchSize $ [getImage n imgs | n <- [0 .. 199]]
-  let !labels = chunks batchSize $ [getLabel n lbls | n <- [0 .. 199]]
+  let !images = chunks batchSize $ [getImage n imgs | n <- [0 .. 999]]
+  let !labels = chunks batchSize $ [getLabel n lbls | n <- [0 .. 999]]
 
   let !images' = map (\c -> (batchSize >< 784) $! concat c) images
   let !labels' = map (\c -> fromLists $! map convertToSoftmax c) labels
@@ -54,11 +55,21 @@ getLabel :: Int -> BS.ByteString -> R
 getLabel n !s = fromIntegral $ BS.index s (n + 8)
 
 -- Train function that also logs when a chunk has been processed.
-trainLog :: Trainer p => p -> [Layer] -> (Matrix R, Matrix R) -> IO Network
-trainLog t n (x, y) = do
-  let !n' = train t n x y
-  putStrLn "Chunk processed"
-  return n'
+--trainLog :: Trainer p => p -> [Layer] -> (Matrix R, Matrix R) -> IO Network
+--trainLog t n (x, y) = do
+--  let !n' = train t n x y
+-- putStrLn "Chunk processed"
+--  return n'
+
+-- Train with mini-batch SGD (Stochastic Gradient Descent)
+-- Will have to implement a different trainer interface for this later.
+-- Same as `parMap rdeepseq (\x -> train t n (fst x) (snd x)) chunks`
+trainChunksParallel :: Trainer p => p -> [Layer] -> [(Matrix R, Matrix R)] -> [Network]
+trainChunksParallel t n = parMap rdeepseq (uncurry (train t n))
+
+trainEpoch :: Trainer t => t -> [(Matrix R, Matrix R)] -> [Layer] -> IO Network
+trainEpoch t cs n = do
+  return (last $ trainChunksParallel t n cs)
 
 -- Training the network to solve the MNIST problem.
 -- The network architecture is input: 784 (or 28*28) pixel values -> layer 1: 512 neurons -> layer 2: 256 neurons -> output: 10 neurons
@@ -73,13 +84,18 @@ trainMNIST = do
   let t = bgdTrainer 0.05 1
   putStrLn "Network initialized"
 
-  --let n3 = foldl (\n (x, y) -> train t n x y) n2 cs
-  -- !n3 <- foldM (trainLog t) n2 cs
   !n3 <- foldM (\net epoch -> do
     putStrLn $ "Epoch: " ++ show epoch
-    --foldM (trainLog t) net cs) n2 [1..50 :: Int]
-    net' <- foldM (trainLog t) net cs
+    net' <- trainEpoch t cs net
     net' `deepseq` return net') n2 [1..50 :: Int]
+
+  --let n3 = foldl (\n (x, y) -> train t n x y) n2 cs
+  -- !n3 <- foldM (trainLog t) n2 cs
+  -- !n3 <- foldM (\net epoch -> do
+    --putStrLn $ "Epoch: " ++ show epoch
+    --foldM (trainLog t) net cs) n2 [1..50 :: Int]
+    --net' <- foldM (trainLog t) net cs
+    --net' `deepseq` return net') n2 [1..50 :: Int]
   --let n3 = train t n2 x y
   putStrLn "Network trained"
   --print (head $ map weights n3)

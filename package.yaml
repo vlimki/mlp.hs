@@ -26,6 +26,7 @@ dependencies:
 - zlib
 - bytestring
 - deepseq
+- parallel
 
 ghc-options:
 - -Wall
