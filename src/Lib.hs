@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module Lib (fit, train, bgdTrainer, initialize, predict, trainXOR, loadMNIST, trainMNIST, convertToSoftmax, saveParameters, loadParameters) where
+module Lib (fit, train, bgdTrainer, initialize, predict, trainXOR, loadMNIST, trainMNIST, convertToSoftmax, saveParameters, loadParameters, evalMNIST) where
 
 import Codec.Compression.GZip (decompress)
 import qualified Data.ByteString as BS
@@ -7,10 +7,10 @@ import qualified Data.ByteString.Lazy as BL
 import Network.Activation
 import Network.Network
 import Network.Trainer
-import Numeric.LinearAlgebra (Matrix, R, fromLists, (><), size)
+import Numeric.LinearAlgebra (Matrix, R, fromLists, (><), size, maxIndex, flatten, scalar, cmap)
 import Util
 import System.IO
-import Control.Parallel.Strategies (rdeepseq, parMap, parListChunk, using)
+import Control.Parallel.Strategies (rdeepseq, parMap)
 import Control.Monad (foldM)
 import Control.DeepSeq (deepseq)
 
@@ -20,9 +20,42 @@ chunks n xs
   | n > 0     = take n xs : chunks n (drop n xs)
   | otherwise = error "Chunk size must be > 0"
 
--- Takes a 1x1 matrix (e.g [5.0]) and converts it to the softmax format (e.g [0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
+-- Takes a 1x1 matrix (e.g [4.0]) and converts it to the softmax format (e.g [0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
 convertToSoftmax :: R -> [R]
 convertToSoftmax val = [if x == val then 1.0 else 0.0 | x <- [1 .. 10]]
+
+-- Does the opposite of `convertToSoftmax`. Takes a matrix like [0, 0, 0, 0, 1, 0, 0, 0, 0, 0]
+softmaxToPredicted :: Matrix R -> Matrix R
+softmaxToPredicted mat = scalar (fromIntegral $ maxIndex $ flatten mat)
+
+loadTestMNIST :: IO (Matrix R, Matrix R)
+loadTestMNIST = do
+  testData <- decompress <$> BL.readFile "./data/mnist/t10k-images-idx3-ubyte.gz"
+  testLabels <- decompress <$> BL.readFile "./data/mnist/t10k-labels-idx1-ubyte.gz"
+
+  let !lbls = BL.toStrict testLabels
+  let !imgs = BL.toStrict testData
+
+  let !images =  Prelude.concat $ [getImage n imgs | n <- [0 .. 9999]]
+  let !labels = [getLabel n lbls | n <- [0 .. 9999]]
+
+  let !images' = (10000>< 784) images
+  let !labels' = fromLists $! map convertToSoftmax labels
+
+  images' `deepseq` labels' `deepseq` return (images',  labels')
+
+evalMNIST ::  IO ()
+evalMNIST = do
+  n <- loadParameters "./data/weights-mnist" "./data/biases-mnist" [relu, relu, softmax]
+  (inputs, outputs) <- loadTestMNIST
+  errors <- mapM (\(x, y) -> do
+    let err = if softmaxToPredicted (predict x n) == softmaxToPredicted y then 0 else 1
+    putStrLn $ "----------\nOutput: " ++ show (softmaxToPredicted (predict x n)) ++ "\nTarget: " ++ show (softmaxToPredicted y) ++ "\nError: " ++ show err
+    return err
+    ) $ zip (matrixToRows inputs) (matrixToRows outputs)
+
+  putStrLn $ "Correctly classified " ++ show ((length errors - (sum errors))) ++ "/" ++ show (length errors) ++ " images."
+  return ()
 
 -- Return [(input, output)] in chunks
 loadMNIST :: IO [(Matrix R, Matrix R)]
@@ -41,7 +74,6 @@ loadMNIST = do
   let !images' = map (\c -> (batchSize >< 784) $! concat c) images
   let !labels' = map (\c -> fromLists $! map convertToSoftmax c) labels
   images' `deepseq` labels' `deepseq` return (zip images' labels')
-  --return $ zip images' labels'
 
 -- This code is inspired by https://github.com/ttesmer/haskell-mnist/blob/master/src/Network.hs.
 -- The MNIST dataset is stored in binary, where the first 16 bytes are the header, and every image is 784 bytes (28x28 pixels)
