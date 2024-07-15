@@ -1,3 +1,4 @@
+{-#LANGUAGE BangPatterns#-}
 module Network.Network
   ( Network
   , Layer(..)
@@ -19,6 +20,7 @@ import Numeric.LinearAlgebra
 import qualified Numeric.LinearAlgebra as LA
 import System.Random (randomRIO)
 import Util (enumerate, mse)
+import Control.DeepSeq (deepseq, NFData, rnf)
 
 -- The layer type. The parameters in the network are stored on a layer basis.
 -- weights     = weight matrix
@@ -27,11 +29,14 @@ import Util (enumerate, mse)
 -- activation  = the activation function
 -- activation' = the derivative of the activation function
 data Layer = Layer
-  { weights :: Matrix R
-  , biases :: Matrix R
-  , sz :: Int
-  , activation :: Activation
+  { weights :: !(Matrix R)
+  , biases :: !(Matrix R)
+  , sz :: !Int
+  , activation :: !Activation
   }
+
+instance NFData Layer where
+  rnf (Layer a ws bs s) = a `seq` ws `deepseq` bs `deepseq` s `seq` ()
 
 -- A network is just a list of layers.
 type Network = [Layer]

@@ -40,6 +40,7 @@ library
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , deepseq
     , hmatrix
     , random
     , zlib
@@ -57,6 +58,7 @@ executable mlp-hs-exe
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , deepseq
     , hmatrix
     , mlp-hs
     , random
@@ -76,6 +78,7 @@ test-suite mlp-hs-test
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , deepseq
     , hmatrix
     , mlp-hs
     , random

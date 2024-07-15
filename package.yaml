@@ -25,6 +25,7 @@ dependencies:
 - random
 - zlib
 - bytestring
+- deepseq
 
 ghc-options:
 - -Wall

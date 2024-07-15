@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Lib (fit, train, bgdTrainer, initialize, predict, trainXOR, loadMNIST, trainMNIST, convertToSoftmax, saveParameters, loadParameters) where
 
 import Codec.Compression.GZip (decompress)
@@ -9,52 +10,84 @@ import Network.Trainer
 import Numeric.LinearAlgebra (Matrix, R, fromLists, (><), size)
 import Util
 import System.IO
+import Control.Monad (foldM)
+import Control.DeepSeq (deepseq)
+
+chunks :: Int -> [a] -> [[a]]
+chunks _ [] = []
+chunks n xs
+  | n > 0     = take n xs : chunks n (drop n xs)
+  | otherwise = error "Chunk size must be > 0"
 
 -- Takes a 1x1 matrix (e.g [5.0]) and converts it to the softmax format (e.g [0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
 convertToSoftmax :: R -> [R]
 convertToSoftmax val = [if x == val then 1.0 else 0.0 | x <- [1 .. 10]]
 
--- Return (input, output)
-loadMNIST :: IO (Matrix R, Matrix R)
+-- Return [(input, output)] in chunks
+loadMNIST :: IO [(Matrix R, Matrix R)]
 loadMNIST = do
   trainData <- decompress <$> BL.readFile "./data/mnist/train-images-idx3-ubyte.gz"
   trainLabels <- decompress <$> BL.readFile "./data/mnist/train-labels-idx1-ubyte.gz"
 
-  let images = Prelude.concat $ [getImage n (BL.toStrict trainData) | n <- [0 .. 9]]
-  let labels = [getLabel n (BL.toStrict trainLabels) | n <- [0 .. 9]]
+  let batchSize = 100
 
-  let images' = (Prelude.length labels >< 784) images
-  let labels' = fromLists $ map convertToSoftmax labels
-  return (images', labels')
+  let !lbls = BL.toStrict trainLabels
+  let !imgs = BL.toStrict trainData
+
+  let !images = chunks batchSize $ [getImage n imgs | n <- [0 .. 199]]
+  let !labels = chunks batchSize $ [getLabel n lbls | n <- [0 .. 199]]
+
+  let !images' = map (\c -> (batchSize >< 784) $! concat c) images
+  let !labels' = map (\c -> fromLists $! map convertToSoftmax c) labels
+  return $ zip images' labels'
 
 -- This code is inspired by https://github.com/ttesmer/haskell-mnist/blob/master/src/Network.hs.
 -- The MNIST dataset is stored in binary, where the first 16 bytes are the header, and every image is 784 bytes (28x28 pixels)
 -- Every byte is a value from 0-255, so we normalize the value to be anywhere between 0 and 1.
 getImage :: Int -> BS.ByteString -> [R]
-getImage n ds = [normalize $ BS.index ds (16 + n * 784 + s) | s <- [0 .. 783]]
+getImage n !ds = [normalize $ BS.index ds (16 + n * 784 + s) | s <- [0 .. 783]]
   where
     normalize x = fromIntegral x / 255
 
 -- The label data is stored so that the first 8 bytes are the header of the file, and every label from there is just 1 bit.
 getLabel :: Int -> BS.ByteString -> R
-getLabel n s = fromIntegral $ BS.index s (n + 8)
+getLabel n !s = fromIntegral $ BS.index s (n + 8)
+
+-- Train function that also logs when a chunk has been processed.
+trainLog :: Trainer p => p -> [Layer] -> (Matrix R, Matrix R) -> IO Network
+trainLog t n (x, y) = do
+  let !n' = train t n x y
+  putStrLn "Chunk processed"
+  return n'
 
 -- Training the network to solve the MNIST problem.
 -- The network architecture is input: 784 (or 28*28) pixel values -> layer 1: 512 neurons -> layer 2: 256 neurons -> output: 10 neurons
 -- We're using the softmax function here since we're doing multi-class classification.
 trainMNIST :: IO Network
 trainMNIST = do
-  (x, y) <- loadMNIST
-  n1 <- initialize [512, 256, 10] [relu, relu, softmax]
-  n2 <- fit (head $ matrixToRows x) n1
+  !cs <- loadMNIST
+  putStrLn "Dataset loaded"
+  !n1 <- initialize [512, 256, 10] [relu, relu, softmax]
+  !n2 <- fit (head $ matrixToRows $ fst $ head cs) n1
 
-  let t = bgdTrainer 0.1 100
-  let n3 = train t n2 x y
+  let t = bgdTrainer 0.05 1
+  putStrLn "Network initialized"
 
-  mapM_ (\(input, output) -> putStrLn $ "Target: " ++ show output ++ ", Output: " ++ show (predict input n3)) $ zip (matrixToRows x) (matrixToRows y)
+  --let n3 = foldl (\n (x, y) -> train t n x y) n2 cs
+  -- !n3 <- foldM (trainLog t) n2 cs
+  !n3 <- foldM (\net epoch -> do
+    putStrLn $ "Epoch: " ++ show epoch
+    --foldM (trainLog t) net cs) n2 [1..50 :: Int]
+    net' <- foldM (trainLog t) net cs
+    net' `deepseq` return net') n2 [1..50 :: Int]
+  --let n3 = train t n2 x y
+  putStrLn "Network trained"
+  --print (head $ map weights n3)
 
-  let loss = eval n3 (matrixToRows x) (matrixToRows y)
-  putStrLn $ "Loss: " ++ show loss
+  --let loss = eval n3 (matrixToRows x) (matrixToRows y)
+  --putStrLn $ "Loss: " ++ show loss
+  saveParameters "./data/weights-mnist" "./data/biases-mnist" n3
+  putStrLn "Parameters saved. Done."
 
   return n3
 
@@ -91,7 +124,7 @@ trainXOR = do
   putStrLn "Initial weights:"
   printNet n2
 
-  let t = bgdTrainer 0.1 100000
+  let t = bgdTrainer 0.1 5000
   let n3 = train t n2 xorInput xorOutput
 
   putStrLn "Final weights:"
