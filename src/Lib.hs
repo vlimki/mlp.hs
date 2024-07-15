@@ -54,13 +54,6 @@ getImage n !ds = [normalize $ BS.index ds (16 + n * 784 + s) | s <- [0 .. 783]]
 getLabel :: Int -> BS.ByteString -> R
 getLabel n !s = fromIntegral $ BS.index s (n + 8)
 
--- Train function that also logs when a chunk has been processed.
---trainLog :: Trainer p => p -> [Layer] -> (Matrix R, Matrix R) -> IO Network
---trainLog t n (x, y) = do
---  let !n' = train t n x y
--- putStrLn "Chunk processed"
---  return n'
-
 -- Train with mini-batch SGD (Stochastic Gradient Descent)
 -- Will have to implement a different trainer interface for this later.
 -- Same as `parMap rdeepseq (\x -> train t n (fst x) (snd x)) chunks`
@@ -89,19 +82,11 @@ trainMNIST = do
     net' <- trainEpoch t cs net
     net' `deepseq` return net') n2 [1..50 :: Int]
 
-  --let n3 = foldl (\n (x, y) -> train t n x y) n2 cs
-  -- !n3 <- foldM (trainLog t) n2 cs
-  -- !n3 <- foldM (\net epoch -> do
-    --putStrLn $ "Epoch: " ++ show epoch
-    --foldM (trainLog t) net cs) n2 [1..50 :: Int]
-    --net' <- foldM (trainLog t) net cs
-    --net' `deepseq` return net') n2 [1..50 :: Int]
-  --let n3 = train t n2 x y
   putStrLn "Network trained"
-  --print (head $ map weights n3)
 
   --let loss = eval n3 (matrixToRows x) (matrixToRows y)
   --putStrLn $ "Loss: " ++ show loss
+
   saveParameters "./data/weights-mnist" "./data/biases-mnist" n3
   putStrLn "Parameters saved. Done."
 
