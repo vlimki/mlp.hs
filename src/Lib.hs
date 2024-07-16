@@ -7,18 +7,33 @@ import qualified Data.ByteString.Lazy as BL
 import Network.Activation
 import Network.Network
 import Network.Trainer
-import Numeric.LinearAlgebra (Matrix, R, fromLists, (><), size, maxIndex, flatten, scalar, cmap)
+import Numeric.LinearAlgebra (Matrix, R, fromLists, (><), size, maxIndex, flatten, scalar)
 import Util
 import System.IO
 import Control.Parallel.Strategies (rdeepseq, parMap)
 import Control.Monad (foldM)
 import Control.DeepSeq (deepseq)
+import System.Mem (performGC)
+import GHC.Stats (getRTSStatsEnabled, getRTSStats)
+import Control.Parallel.Strategies (parListChunk, using, rdeepseq)
 
 chunks :: Int -> [a] -> [[a]]
 chunks _ [] = []
 chunks n xs
   | n > 0     = take n xs : chunks n (drop n xs)
   | otherwise = error "Chunk size must be > 0"
+
+-- Function to log memory usage
+logMemoryUsage :: String -> IO ()
+logMemoryUsage tag = do
+  enabled <- getRTSStatsEnabled
+  if enabled
+    then do
+      stats <- getRTSStats
+      putStrLn $ tag ++ ": " ++ show stats
+    else
+      putStrLn $ tag ++ ": GC stats not enabled"
+
 
 -- Takes a 1x1 matrix (e.g [4.0]) and converts it to the softmax format (e.g [0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
 convertToSoftmax :: R -> [R]
@@ -54,16 +69,16 @@ evalMNIST = do
     return err
     ) $ zip (matrixToRows inputs) (matrixToRows outputs)
 
-  putStrLn $ "Correctly classified " ++ show ((length errors - (sum errors))) ++ "/" ++ show (length errors) ++ " images."
+  putStrLn $ "Correctly classified " ++ show (length errors - sum errors) ++ "/" ++ show (length errors) ++ " images."
   return ()
 
 -- Return [(input, output)] in chunks
 loadMNIST :: IO [(Matrix R, Matrix R)]
 loadMNIST = do
-  trainData <- decompress <$> BL.readFile "./data/mnist/train-images-idx3-ubyte.gz"
-  trainLabels <- decompress <$> BL.readFile "./data/mnist/train-labels-idx1-ubyte.gz"
+  !trainData <- decompress <$> BL.readFile "./data/mnist/train-images-idx3-ubyte.gz"
+  !trainLabels <- decompress <$> BL.readFile "./data/mnist/train-labels-idx1-ubyte.gz"
 
-  let batchSize = 1000
+  let batchSize = 200
 
   let !lbls = BL.toStrict trainLabels
   let !imgs = BL.toStrict trainData
@@ -91,11 +106,17 @@ getLabel n !s = fromIntegral $ BS.index s (n + 8)
 -- Will have to implement a different trainer interface for this later.
 -- Same as `parMap rdeepseq (\x -> train t n (fst x) (snd x)) chunks`
 trainChunksParallel :: Trainer p => p -> [Layer] -> [(Matrix R, Matrix R)] -> [Network]
-trainChunksParallel t n = parMap rdeepseq (uncurry (train t n))
+--trainChunksParallel t n = parMap rdeepseq (uncurry (train t n))
+trainChunksParallel t n =
+  --foldl (\n' c -> train t n' (fst c) (snd c)) n
+  parMap rdeepseq (\x -> let net = uncurry (train t n) x in net `deepseq` net)
+
 
 trainEpoch :: Trainer t => t -> [(Matrix R, Matrix R)] -> [Layer] -> IO Network
 trainEpoch t cs n = do
-  return (last $ trainChunksParallel t n cs)
+  let !networks = trainChunksParallel t n cs
+  let !finalNetwork = last networks
+  finalNetwork `deepseq` return finalNetwork
 
 -- Training the network to solve the MNIST problem.
 -- The network architecture is input: 784 (or 28*28) pixel values -> layer 1: 512 neurons -> layer 2: 256 neurons -> output: 10 neurons
@@ -109,14 +130,16 @@ trainMNIST = do
   !n1 <- initialize [512, 256, 10] [relu, relu, softmax]
   !n2 <- fit (head $ matrixToRows $ fst $ head cs) n1
 
-  let t = bgdTrainer 0.15 1
+  let t = bgdTrainer 0.1 1
   putStrLn "Network initialized."
 
   putStrLn "Training network..."
   !n3 <- foldM (\net epoch -> do
-    putStrLn $ "Epoch " ++ show epoch ++ "/60"
-    net' <- trainEpoch t cs net
-    net' `deepseq` return net') n2 [1..60 :: Int]
+    putStrLn $ "Epoch " ++ show epoch ++ "/50"
+    let newLr = learningRate t / (1 + 0.00 * (50 - fromIntegral (epochs t)))
+    net' <- trainEpoch t {learningRate = newLr} cs net
+    --net' `deepseq` logMemoryUsage ("Epoch " ++ show epoch)
+    net' `deepseq` return net') n2 [1..50 :: Int]
 
   putStrLn "Network trained."
 
