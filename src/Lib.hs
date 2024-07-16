@@ -39,7 +39,7 @@ loadTestMNIST = do
   let !images =  Prelude.concat $ [getImage n imgs | n <- [0 .. 9999]]
   let !labels = [getLabel n lbls | n <- [0 .. 9999]]
 
-  let !images' = (10000>< 784) images
+  let !images' = (10000><784) images
   let !labels' = fromLists $! map convertToSoftmax labels
 
   images' `deepseq` labels' `deepseq` return (images',  labels')
@@ -109,14 +109,14 @@ trainMNIST = do
   !n1 <- initialize [512, 256, 10] [relu, relu, softmax]
   !n2 <- fit (head $ matrixToRows $ fst $ head cs) n1
 
-  let t = bgdTrainer 0.1 1
+  let t = bgdTrainer 0.15 1
   putStrLn "Network initialized."
 
   putStrLn "Training network..."
   !n3 <- foldM (\net epoch -> do
-    putStrLn $ "Epoch " ++ show epoch ++ "/50"
+    putStrLn $ "Epoch " ++ show epoch ++ "/60"
     net' <- trainEpoch t cs net
-    net' `deepseq` return net') n2 [1..50 :: Int]
+    net' `deepseq` return net') n2 [1..60 :: Int]
 
   putStrLn "Network trained."
 
