@@ -10,12 +10,10 @@ import Network.Trainer
 import Numeric.LinearAlgebra (Matrix, R, fromLists, (><), size, maxIndex, flatten, scalar)
 import Util
 import System.IO
-import Control.Parallel.Strategies (rdeepseq, parMap)
-import Control.Monad (foldM)
-import Control.DeepSeq (deepseq)
-import System.Mem (performGC)
+import Control.Monad (foldM, forM_)
+import Control.DeepSeq (deepseq, force, rnf)
 import GHC.Stats (getRTSStatsEnabled, getRTSStats)
-import Control.Parallel.Strategies (parListChunk, using, rdeepseq)
+import Control.Parallel.Strategies (parListChunk, using, rseq, parMap)
 
 chunks :: Int -> [a] -> [[a]]
 chunks _ [] = []
@@ -57,7 +55,7 @@ loadTestMNIST = do
   let !images' = (10000><784) images
   let !labels' = fromLists $! map convertToSoftmax labels
 
-  images' `deepseq` labels' `deepseq` return (images',  labels')
+  images' `seq` labels' `seq` return (images',  labels')
 
 evalMNIST ::  IO ()
 evalMNIST = do
@@ -75,48 +73,48 @@ evalMNIST = do
 -- Return [(input, output)] in chunks
 loadMNIST :: IO [(Matrix R, Matrix R)]
 loadMNIST = do
-  !trainData <- decompress <$> BL.readFile "./data/mnist/train-images-idx3-ubyte.gz"
-  !trainLabels <- decompress <$> BL.readFile "./data/mnist/train-labels-idx1-ubyte.gz"
+  trainData <- decompress <$> BL.readFile "./data/mnist/train-images-idx3-ubyte.gz"
+  trainLabels <- decompress <$> BL.readFile "./data/mnist/train-labels-idx1-ubyte.gz"
 
-  let batchSize = 200
+  let batchSize = 2000
 
-  let !lbls = BL.toStrict trainLabels
-  let !imgs = BL.toStrict trainData
+  let lbls = BL.toStrict trainLabels
+  let imgs = BL.toStrict trainData
 
-  let !images = chunks batchSize $ [getImage n imgs | n <- [0 .. 59999]]
-  let !labels = chunks batchSize $ [getLabel n lbls | n <- [0 .. 59999]]
+  let images = chunks batchSize $ [getImage n imgs | n <- [0 .. 59999]]
+  let labels = chunks batchSize $ [getLabel n lbls | n <- [0 .. 59999]]
 
-  let !images' = map (\c -> (batchSize >< 784) $! concat c) images
-  let !labels' = map (\c -> fromLists $! map convertToSoftmax c) labels
-  images' `deepseq` labels' `deepseq` return (zip images' labels')
+  let images' = map (\c -> (batchSize >< 784) $! concat c) images
+  let labels' = map (\c -> fromLists $! map convertToSoftmax c) labels
+  images' `seq` labels' `seq` return (zip images' labels')
 
 -- This code is inspired by https://github.com/ttesmer/haskell-mnist/blob/master/src/Network.hs.
 -- The MNIST dataset is stored in binary, where the first 16 bytes are the header, and every image is 784 bytes (28x28 pixels)
 -- Every byte is a value from 0-255, so we normalize the value to be anywhere between 0 and 1.
 getImage :: Int -> BS.ByteString -> [R]
-getImage n !ds = [normalize $ BS.index ds (16 + n * 784 + s) | s <- [0 .. 783]]
+getImage n ds = [normalize $ BS.index ds (16 + n * 784 + s) | s <- [0 .. 783]]
   where
     normalize x = fromIntegral x / 255
 
 -- The label data is stored so that the first 8 bytes are the header of the file, and every label from there is just 1 bit.
 getLabel :: Int -> BS.ByteString -> R
-getLabel n !s = fromIntegral $ BS.index s (n + 8)
+getLabel n s = fromIntegral $ BS.index s (n + 8)
 
 -- Train with mini-batch SGD (Stochastic Gradient Descent)
 -- Will have to implement a different trainer interface for this later.
--- Same as `parMap rdeepseq (\x -> train t n (fst x) (snd x)) chunks`
+-- Same as `parMap rseq (\x -> train t n (fst x) (snd x)) chunks`
 trainChunksParallel :: Trainer p => p -> [Layer] -> [(Matrix R, Matrix R)] -> [Network]
---trainChunksParallel t n = parMap rdeepseq (uncurry (train t n))
+--trainChunksParallel t n = parMap rseq (uncurry (train t n))
 trainChunksParallel t n =
   --foldl (\n' c -> train t n' (fst c) (snd c)) n
-  parMap rdeepseq (\x -> let net = uncurry (train t n) x in net `deepseq` net)
+  parMap rseq (\x -> let net = uncurry (train t n) x in net `seq` net)
 
 
 trainEpoch :: Trainer t => t -> [(Matrix R, Matrix R)] -> [Layer] -> IO Network
 trainEpoch t cs n = do
-  let !networks = trainChunksParallel t n cs
-  let !finalNetwork = last networks
-  finalNetwork `deepseq` return finalNetwork
+  let networks = trainChunksParallel t n cs
+  let finalNetwork = last networks
+  finalNetwork `seq` return finalNetwork
 
 -- Training the network to solve the MNIST problem.
 -- The network architecture is input: 784 (or 28*28) pixel values -> layer 1: 512 neurons -> layer 2: 256 neurons -> output: 10 neurons
@@ -124,29 +122,31 @@ trainEpoch t cs n = do
 trainMNIST :: IO Network
 trainMNIST = do
   putStrLn "Loading dataset..."
-  !cs <- loadMNIST
+  cs <- loadMNIST
   putStrLn "Dataset loaded."
   putStrLn "Initializing network..."
-  !n1 <- initialize [512, 256, 10] [relu, relu, softmax]
-  !n2 <- fit (head $ matrixToRows $ fst $ head cs) n1
+  n1 <- initialize [512, 256, 10] [relu, relu, softmax]
+  n2 <- fit (head $ matrixToRows $ fst $ head cs) n1
 
   let t = bgdTrainer 0.1 1
   putStrLn "Network initialized."
 
   putStrLn "Training network..."
-  !n3 <- foldM (\net epoch -> do
+  n3 <- foldM (\net epoch -> do
     putStrLn $ "Epoch " ++ show epoch ++ "/50"
+    hFlush stdout
     let newLr = learningRate t / (1 + 0.00 * (50 - fromIntegral (epochs t)))
     net' <- trainEpoch t {learningRate = newLr} cs net
-    --net' `deepseq` logMemoryUsage ("Epoch " ++ show epoch)
-    net' `deepseq` return net') n2 [1..50 :: Int]
+    putStrLn "Done"
+    net' `seq` logMemoryUsage ("Epoch " ++ show epoch)
+    seq (rnf net') (return net')) n2 [1..50 :: Int]
 
   putStrLn "Network trained."
 
   --let loss = eval n3 (matrixToRows x) (matrixToRows y)
   --putStrLn $ "Loss: " ++ show loss
 
-  putStrLn "Saving paremeters..."
+  putStrLn "Saving parameters..."
   saveParameters "./data/weights-mnist" "./data/biases-mnist" n3
   putStrLn "Parameters saved. Done."
 

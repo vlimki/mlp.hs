@@ -36,7 +36,7 @@ data Layer = Layer
   }
 
 instance NFData Layer where
-  rnf (Layer a ws bs s) = a `seq` ws `deepseq` bs `deepseq` s `seq` ()
+  rnf (Layer a ws bs s) = a `seq` ws `seq` bs `seq` s `seq` ()
 
 -- A network is just a list of layers.
 type Network = [Layer]
