@@ -11,12 +11,10 @@ import Numeric.LinearAlgebra (Matrix, R, fromLists, (><), size, maxIndex, flatte
 import Util
 import System.IO
 import Data.IORef
-import Control.Monad (forM_)
 import System.Random (randomRIO)
-import Control.Monad (foldM, when)
+import Control.Monad (foldM, when, forM_)
 import Control.DeepSeq (rnf)
-import GHC.Stats (getRTSStatsEnabled, getRTSStats)
-import Control.Parallel.Strategies (parListChunk, using, rdeepseq, rseq, parMap)
+--import Control.Parallel.Strategies (parListChunk, using, rdeepseq, rseq, parMap)
 
 chunks :: Int -> [a] -> [[a]]
 chunks _ [] = []
@@ -52,11 +50,12 @@ evalMNIST :: IO Int
 evalMNIST = do
   n <- loadParameters "./data/weights-mnist" "./data/biases-mnist" [relu, relu, softmax]
   (inputs, outputs) <- loadTestMNIST
-  errors <- mapM (\(x, y) -> do
-    let err = if softmaxToPredicted (predict x n) == softmaxToPredicted y then 0 else 1
-    --putStrLn $ "----------\nOutput: " ++ show (softmaxToPredicted (predict x n)) ++ "\nTarget: " ++ show (softmaxToPredicted y) ++ "\nError: " ++ show err
-    return err
-    ) $ zip (matrixToRows inputs) (matrixToRows outputs)
+  let errors = zipWith (\ x y
+        -> (if softmaxToPredicted (predict x n)
+                 == softmaxToPredicted y then
+                0
+            else
+                1)) (matrixToRows inputs) (matrixToRows outputs)
 
   putStrLn $ "Correctly classified " ++ show (length errors - sum errors) ++ "/" ++ show (length errors) ++ " images."
   return $ sum errors
@@ -72,8 +71,8 @@ loadMNIST = do
   let lbls = BL.toStrict trainLabels
   let imgs = BL.toStrict trainData
 
-  let images = chunks batchSize $ [getImage n imgs | n <- [0 .. 9999]]
-  let labels = chunks batchSize $ [getLabel n lbls | n <- [0 .. 9999]]
+  let images = chunks batchSize $ [getImage n imgs | n <- [0 .. 59999]]
+  let labels = chunks batchSize $ [getLabel n lbls | n <- [0 .. 59999]]
 
   let images' = map (\c -> (batchSize >< 784) $! concat c) images
   let labels' = map (\c -> fromLists $! map convertToSoftmax c) labels
@@ -95,9 +94,9 @@ getLabel n s = fromIntegral $ BS.index s (n + 8)
 -- Will have to implement a different trainer interface for this later.
 -- Same as `parMap rseq (\x -> train t n (fst x) (snd x)) chunks`
 trainChunksParallel :: Trainer p => p -> [Layer] -> [(Matrix R, Matrix R)] -> Network
---trainChunksParallel t n = parMap rseq (uncurry (train t n))
 trainChunksParallel t = foldl (uncurry . train t)
         --foldl (\n' c -> train t n' (fst c) (snd c)) n cs `using` parListChunk 10 rseq
+--trainChunksParallel t n = parMap rseq (uncurry (train t n))
   --parMap rseq (\x -> let net = uncurry (train t n) x in net)
 
 trainEpoch :: Trainer t => t -> [(Matrix R, Matrix R)] -> [Layer] -> IO Network
@@ -136,6 +135,8 @@ trainMNIST = do
   n3 <- foldM (\net epoch -> do
     putStrLn $ "Epoch " ++ show epoch ++ "/" ++ show (last es)
     hFlush stdout
+
+    -- Learning rate decay
     let newLr = learningRate t / (1 + 0.001 * (fromIntegral (last es) - fromIntegral (epochs t)))
     shuffled <- shuffle cs
     net' <- trainEpoch t {learningRate = newLr} shuffled net
@@ -144,9 +145,6 @@ trainMNIST = do
     seq (rnf net') (return net')) n2 es
 
   putStrLn "Network trained."
-
-  --let loss = eval n3 (matrixToRows x) (matrixToRows y)
-  --putStrLn $ "Loss: " ++ show loss
 
   putStrLn "Saving parameters..."
   saveParameters "./data/weights-mnist" "./data/biases-mnist" n3
