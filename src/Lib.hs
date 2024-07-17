@@ -66,7 +66,7 @@ loadMNIST = do
   trainData <- decompress <$> BL.readFile "./data/mnist/train-images-idx3-ubyte.gz"
   trainLabels <- decompress <$> BL.readFile "./data/mnist/train-labels-idx1-ubyte.gz"
 
-  let batchSize = 100
+  let batchSize = 30
 
   let lbls = BL.toStrict trainLabels
   let imgs = BL.toStrict trainData
@@ -99,7 +99,7 @@ trainChunksParallel t = foldl (uncurry . train t)
 --trainChunksParallel t n = parMap rseq (uncurry (train t n))
   --parMap rseq (\x -> let net = uncurry (train t n) x in net)
 
-trainEpoch :: Trainer t => t -> [(Matrix R, Matrix R)] -> [Layer] -> IO Network
+trainEpoch :: Trainer t => t -> [(Matrix R, Matrix R)] -> Network -> IO Network
 trainEpoch t cs n = do
   let trained = trainChunksParallel t n cs
   trained `seq` return trained
@@ -121,13 +121,13 @@ trainMNIST = do
   cs <- loadMNIST
   putStrLn "Dataset loaded."
   putStrLn "Initializing network..."
-  n1 <- initialize [512, 256, 10] [relu, relu, softmax]
+  n1 <- initialize [512, 256, 10] [relu, relu, relu, softmax]
   n2 <- fit (head $ matrixToRows $ fst $ head cs) n1
 
-  let t = bgdTrainer 0.01 1
+  let t = bgdTrainer 0.001 1
   putStrLn "Network initialized."
 
-  let es = [1..50 :: Int]
+  let es = [1..10 :: Int]
   putStrLn "Loading test dataset..."
   (testInputs, testOutputs) <- loadTestMNIST
   testInputs `seq` testOutputs `seq` putStrLn "Test dataset loaded."
@@ -137,11 +137,11 @@ trainMNIST = do
     hFlush stdout
 
     -- Learning rate decay
-    let newLr = learningRate t / (1 + 0.001 * (fromIntegral (last es) - fromIntegral (epochs t)))
+    let newLr = learningRate t / (1 + 0.001 * (fromIntegral (epochs t) - 1))
     shuffled <- shuffle cs
-    net' <- trainEpoch t {learningRate = newLr} shuffled net
-    when (even epoch) $ do
-      Lib.eval net' (testInputs, testOutputs)
+    let newTrainer = t {learningRate = newLr }
+    net' <- newTrainer `seq` trainEpoch newTrainer shuffled net
+    Lib.eval net' (testInputs, testOutputs)
     seq (rnf net') (return net')) n2 es
 
   putStrLn "Network trained."
