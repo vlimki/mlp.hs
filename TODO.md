@@ -1,6 +1,6 @@
 - [ ] Mini-batch SGD interface for Trainer (this is really hard for some reason)
 - [ ] Improve MNIST performance by A LOT (current: 7342/10000) (batch normalization? dropout? ADAM? increasing network complexity? hyperparameter tuning)
-- [ ] Fix parallelization issues. Runs out of RAM instantly when running on more than 1 core. Only trains properly with `stack ghci`. Learn more about Haskell parallelization and lazy/strict evaluation
+- [ ] Add proper parallelization
 - [ ] Proper evaluation framework for the network
 - [ ] Optimizers, gradient boosting, momentum, etc.?
 - [ ] Fully learn all the math and how to derive the backprop formulas
