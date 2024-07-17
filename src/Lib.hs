@@ -10,28 +10,19 @@ import Network.Trainer
 import Numeric.LinearAlgebra (Matrix, R, fromLists, (><), size, maxIndex, flatten, scalar)
 import Util
 import System.IO
-import Control.Monad (foldM, forM_)
-import Control.DeepSeq (deepseq, force, rnf)
+import Data.IORef
+import Control.Monad (forM_)
+import System.Random (randomRIO)
+import Control.Monad (foldM, when)
+import Control.DeepSeq (rnf)
 import GHC.Stats (getRTSStatsEnabled, getRTSStats)
-import Control.Parallel.Strategies (parListChunk, using, rseq, parMap)
+import Control.Parallel.Strategies (parListChunk, using, rdeepseq, rseq, parMap)
 
 chunks :: Int -> [a] -> [[a]]
 chunks _ [] = []
 chunks n xs
   | n > 0     = take n xs : chunks n (drop n xs)
   | otherwise = error "Chunk size must be > 0"
-
--- Function to log memory usage
-logMemoryUsage :: String -> IO ()
-logMemoryUsage tag = do
-  enabled <- getRTSStatsEnabled
-  if enabled
-    then do
-      stats <- getRTSStats
-      putStrLn $ tag ++ ": " ++ show stats
-    else
-      putStrLn $ tag ++ ": GC stats not enabled"
-
 
 -- Takes a 1x1 matrix (e.g [4.0]) and converts it to the softmax format (e.g [0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
 convertToSoftmax :: R -> [R]
@@ -57,18 +48,18 @@ loadTestMNIST = do
 
   images' `seq` labels' `seq` return (images',  labels')
 
-evalMNIST ::  IO ()
+evalMNIST :: IO Int
 evalMNIST = do
   n <- loadParameters "./data/weights-mnist" "./data/biases-mnist" [relu, relu, softmax]
   (inputs, outputs) <- loadTestMNIST
   errors <- mapM (\(x, y) -> do
     let err = if softmaxToPredicted (predict x n) == softmaxToPredicted y then 0 else 1
-    putStrLn $ "----------\nOutput: " ++ show (softmaxToPredicted (predict x n)) ++ "\nTarget: " ++ show (softmaxToPredicted y) ++ "\nError: " ++ show err
+    --putStrLn $ "----------\nOutput: " ++ show (softmaxToPredicted (predict x n)) ++ "\nTarget: " ++ show (softmaxToPredicted y) ++ "\nError: " ++ show err
     return err
     ) $ zip (matrixToRows inputs) (matrixToRows outputs)
 
   putStrLn $ "Correctly classified " ++ show (length errors - sum errors) ++ "/" ++ show (length errors) ++ " images."
-  return ()
+  return $ sum errors
 
 -- Return [(input, output)] in chunks
 loadMNIST :: IO [(Matrix R, Matrix R)]
@@ -76,13 +67,13 @@ loadMNIST = do
   trainData <- decompress <$> BL.readFile "./data/mnist/train-images-idx3-ubyte.gz"
   trainLabels <- decompress <$> BL.readFile "./data/mnist/train-labels-idx1-ubyte.gz"
 
-  let batchSize = 2000
+  let batchSize = 100
 
   let lbls = BL.toStrict trainLabels
   let imgs = BL.toStrict trainData
 
-  let images = chunks batchSize $ [getImage n imgs | n <- [0 .. 59999]]
-  let labels = chunks batchSize $ [getLabel n lbls | n <- [0 .. 59999]]
+  let images = chunks batchSize $ [getImage n imgs | n <- [0 .. 9999]]
+  let labels = chunks batchSize $ [getLabel n lbls | n <- [0 .. 9999]]
 
   let images' = map (\c -> (batchSize >< 784) $! concat c) images
   let labels' = map (\c -> fromLists $! map convertToSoftmax c) labels
@@ -103,18 +94,24 @@ getLabel n s = fromIntegral $ BS.index s (n + 8)
 -- Train with mini-batch SGD (Stochastic Gradient Descent)
 -- Will have to implement a different trainer interface for this later.
 -- Same as `parMap rseq (\x -> train t n (fst x) (snd x)) chunks`
-trainChunksParallel :: Trainer p => p -> [Layer] -> [(Matrix R, Matrix R)] -> [Network]
+trainChunksParallel :: Trainer p => p -> [Layer] -> [(Matrix R, Matrix R)] -> Network
 --trainChunksParallel t n = parMap rseq (uncurry (train t n))
-trainChunksParallel t n =
-  --foldl (\n' c -> train t n' (fst c) (snd c)) n
-  parMap rseq (\x -> let net = uncurry (train t n) x in net `seq` net)
-
+trainChunksParallel t = foldl (uncurry . train t)
+        --foldl (\n' c -> train t n' (fst c) (snd c)) n cs `using` parListChunk 10 rseq
+  --parMap rseq (\x -> let net = uncurry (train t n) x in net)
 
 trainEpoch :: Trainer t => t -> [(Matrix R, Matrix R)] -> [Layer] -> IO Network
 trainEpoch t cs n = do
-  let networks = trainChunksParallel t n cs
-  let finalNetwork = last networks
-  finalNetwork `seq` return finalNetwork
+  let trained = trainChunksParallel t n cs
+  trained `seq` return trained
+
+eval :: Network -> (Matrix R, Matrix R) -> IO ()
+eval n (testInputs, testOutputs) = do
+  errors <- mapM (\(x, y) -> do
+    let err = if softmaxToPredicted (predict x n) == softmaxToPredicted y then 0 else 1 :: Int
+    return err) $ zip (matrixToRows testInputs) (matrixToRows testOutputs)
+  putStrLn $ "Correctly classified " ++ show (length errors - sum errors) ++ "/" ++ show (length errors) ++ " images."
+  return ()
 
 -- Training the network to solve the MNIST problem.
 -- The network architecture is input: 784 (or 28*28) pixel values -> layer 1: 512 neurons -> layer 2: 256 neurons -> output: 10 neurons
@@ -128,18 +125,23 @@ trainMNIST = do
   n1 <- initialize [512, 256, 10] [relu, relu, softmax]
   n2 <- fit (head $ matrixToRows $ fst $ head cs) n1
 
-  let t = bgdTrainer 0.1 1
+  let t = bgdTrainer 0.01 1
   putStrLn "Network initialized."
 
+  let es = [1..50 :: Int]
+  putStrLn "Loading test dataset..."
+  (testInputs, testOutputs) <- loadTestMNIST
+  testInputs `seq` testOutputs `seq` putStrLn "Test dataset loaded."
   putStrLn "Training network..."
   n3 <- foldM (\net epoch -> do
-    putStrLn $ "Epoch " ++ show epoch ++ "/50"
+    putStrLn $ "Epoch " ++ show epoch ++ "/" ++ show (last es)
     hFlush stdout
-    let newLr = learningRate t / (1 + 0.00 * (50 - fromIntegral (epochs t)))
-    net' <- trainEpoch t {learningRate = newLr} cs net
-    putStrLn "Done"
-    net' `seq` logMemoryUsage ("Epoch " ++ show epoch)
-    seq (rnf net') (return net')) n2 [1..50 :: Int]
+    let newLr = learningRate t / (1 + 0.001 * (fromIntegral (last es) - fromIntegral (epochs t)))
+    shuffled <- shuffle cs
+    net' <- trainEpoch t {learningRate = newLr} shuffled net
+    when (even epoch) $ do
+      Lib.eval net' (testInputs, testOutputs)
+    seq (rnf net') (return net')) n2 es
 
   putStrLn "Network trained."
 
@@ -174,6 +176,7 @@ saveParameters wPath bPath n = do
   writeFile wPath w
   writeFile bPath b
   return ()
+
 -- Training the network to solve the XOR problem.
 -- We have a network architecture that looks like this `input -> l1: 4 neurons -> output: 1 neuron`.
 -- We're using the relu activation function for the hidden layers and the sigmoid activation function for the output layer.
@@ -194,7 +197,26 @@ trainXOR = do
   putStrLn "Predictions:"
   mapM_ (\input -> putStrLn $ "Input: " ++ show input ++ ", Output: " ++ show (predict input n3)) (matrixToRows xorInput)
 
-  let loss = eval n3 (matrixToRows xorInput) (matrixToRows xorOutput)
+  let loss = Network.Network.eval n3 (matrixToRows xorInput) (matrixToRows xorOutput)
   putStrLn $ "Loss: " ++ show loss
 
   return n3
+
+-- Shuffle function using Fisher-Yates algorithm
+-- I'll admit, ChatGPT wrote 100% of this lmao
+shuffle :: [a] -> IO [a]
+shuffle xs = do
+    ar <- newIORef xs
+    let n = length xs
+    forM_ [0..n-1] $ \i -> do
+        j <- randomRIO (i, n-1)
+        arr <- readIORef ar
+        let elemI = arr !! i
+            elemJ = arr !! j
+            swappedArr = updateList arr i elemJ
+            finalArr = updateList swappedArr j elemI
+        writeIORef ar finalArr
+    readIORef ar
+
+updateList :: [a] -> Int -> a -> [a]
+updateList lst idx newVal = take idx lst ++ [newVal] ++ drop (idx + 1) lst
