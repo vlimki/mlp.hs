@@ -7,14 +7,17 @@ import qualified Data.ByteString.Lazy as BL
 import Network.Activation
 import Network.Network
 import Network.Trainer
-import Numeric.LinearAlgebra (Matrix, R, fromLists, (><), size, maxIndex, flatten, scalar)
+import Numeric.LinearAlgebra (Matrix, R, fromLists, (><), size, maxIndex, flatten, scalar, toLists)
 import Util
 import System.IO
 import Data.IORef
 import System.Random (randomRIO)
-import Control.Monad (foldM, when, forM_)
+import Control.Monad (foldM, forM_)
 import Control.DeepSeq (rnf)
 --import Control.Parallel.Strategies (parListChunk, using, rdeepseq, rseq, parMap)
+
+batchSize :: Int
+batchSize = 30
 
 chunks :: Int -> [a] -> [[a]]
 chunks _ [] = []
@@ -43,7 +46,6 @@ loadTestMNIST = do
 
   let !images' = (10000><784) images
   let !labels' = fromLists $! map convertToSoftmax labels
-
   images' `seq` labels' `seq` return (images',  labels')
 
 evalMNIST :: IO Int
@@ -65,8 +67,6 @@ loadMNIST :: IO [(Matrix R, Matrix R)]
 loadMNIST = do
   trainData <- decompress <$> BL.readFile "./data/mnist/train-images-idx3-ubyte.gz"
   trainLabels <- decompress <$> BL.readFile "./data/mnist/train-labels-idx1-ubyte.gz"
-
-  let batchSize = 30
 
   let lbls = BL.toStrict trainLabels
   let imgs = BL.toStrict trainData
@@ -112,6 +112,9 @@ eval n (testInputs, testOutputs) = do
   putStrLn $ "Correctly classified " ++ show (length errors - sum errors) ++ "/" ++ show (length errors) ++ " images."
   return ()
 
+connect :: [Matrix R] -> Int -> Int -> Matrix R
+connect x bs s = (((length x * bs) `div` 10) >< s)$ concatMap (concat . toLists) x
+
 -- Training the network to solve the MNIST problem.
 -- The network architecture is input: 784 (or 28*28) pixel values -> layer 1: 512 neurons -> layer 2: 256 neurons -> output: 10 neurons
 -- We're using the softmax function here since we're doing multi-class classification.
@@ -121,7 +124,7 @@ trainMNIST = do
   cs <- loadMNIST
   putStrLn "Dataset loaded."
   putStrLn "Initializing network..."
-  n1 <- initialize [512, 256, 10] [relu, relu, relu, softmax]
+  n1 <- initialize [512, 256, 10] [relu, relu, softmax]
   n2 <- fit (head $ matrixToRows $ fst $ head cs) n1
 
   let t = bgdTrainer 0.001 1
@@ -140,8 +143,17 @@ trainMNIST = do
     let newLr = learningRate t / (1 + 0.001 * (fromIntegral (epochs t) - 1))
     shuffled <- shuffle cs
     let newTrainer = t {learningRate = newLr }
+    let evalCs = take 1000 cs
+    let (evalX, evalY) = (connect (map fst evalCs) batchSize 784, connect (map snd evalCs) batchSize 10)
+    print $ size evalX
+    print $ size evalY
     net' <- newTrainer `seq` trainEpoch newTrainer shuffled net
+    net' `seq` putStrLn "Test dataset evaluation:"
+    hFlush stdout
     Lib.eval net' (testInputs, testOutputs)
+    putStrLn "Training dataset evaluation:"
+    hFlush stdout
+    Lib.eval net' (evalX, evalY)
     seq (rnf net') (return net')) n2 es
 
   putStrLn "Network trained."

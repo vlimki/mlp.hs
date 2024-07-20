@@ -4,6 +4,7 @@
 - [ ] Proper evaluation framework for the network
 - [ ] Optimizers, gradient boosting, momentum, etc.?
 - [ ] Fully learn all the math and how to derive the backprop formulas
+- [ ] Deploy and write frontend
 - [ ] Write blog post
 
 - [x] Fix issues, lr must be set to 10 in order for it to predict XOR correctly
