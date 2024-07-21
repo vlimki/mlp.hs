@@ -17,7 +17,7 @@ import Control.DeepSeq (rnf)
 --import Control.Parallel.Strategies (parListChunk, using, rdeepseq, rseq, parMap)
 
 batchSize :: Int
-batchSize = 30
+batchSize = 10
 
 chunks :: Int -> [a] -> [[a]]
 chunks _ [] = []
@@ -46,7 +46,7 @@ loadTestMNIST = do
 
   let !images' = (10000><784) images
   let !labels' = fromLists $! map convertToSoftmax labels
-  images' `seq` labels' `seq` return (images',  labels')
+  return (images',  labels')
 
 evalMNIST :: IO Int
 evalMNIST = do
@@ -102,7 +102,7 @@ trainChunksParallel t = foldl (uncurry . train t)
 trainEpoch :: Trainer t => t -> [(Matrix R, Matrix R)] -> Network -> IO Network
 trainEpoch t cs n = do
   let trained = trainChunksParallel t n cs
-  trained `seq` return trained
+  return trained
 
 eval :: Network -> (Matrix R, Matrix R) -> IO ()
 eval n (testInputs, testOutputs) = do
@@ -124,13 +124,13 @@ trainMNIST = do
   cs <- loadMNIST
   putStrLn "Dataset loaded."
   putStrLn "Initializing network..."
-  n1 <- initialize [512, 256, 10] [relu, relu, softmax]
+  n1 <- initialize [400, 10] [relu, relu, softmax]
   n2 <- fit (head $ matrixToRows $ fst $ head cs) n1
 
-  let t = bgdTrainer 0.001 1
+  let t = bgdTrainer (0.1 / fromIntegral batchSize) 1
   putStrLn "Network initialized."
 
-  let es = [1..10 :: Int]
+  let es = [1..3 :: Int]
   putStrLn "Loading test dataset..."
   (testInputs, testOutputs) <- loadTestMNIST
   testInputs `seq` testOutputs `seq` putStrLn "Test dataset loaded."
@@ -141,20 +141,20 @@ trainMNIST = do
 
     -- Learning rate decay
     let newLr = learningRate t / (1 + 0.001 * (fromIntegral (epochs t) - 1))
-    shuffled <- shuffle cs
+    --shuffled <- shuffle cs
     let newTrainer = t {learningRate = newLr }
     let evalCs = take 1000 cs
     let (evalX, evalY) = (connect (map fst evalCs) batchSize 784, connect (map snd evalCs) batchSize 10)
     print $ size evalX
     print $ size evalY
-    net' <- newTrainer `seq` trainEpoch newTrainer shuffled net
-    net' `seq` putStrLn "Test dataset evaluation:"
+    net' <- trainEpoch newTrainer cs net
+    putStrLn "Test dataset evaluation:"
     hFlush stdout
     Lib.eval net' (testInputs, testOutputs)
     putStrLn "Training dataset evaluation:"
     hFlush stdout
     Lib.eval net' (evalX, evalY)
-    seq (rnf net') (return net')) n2 es
+    return net') n2 es
 
   putStrLn "Network trained."
 

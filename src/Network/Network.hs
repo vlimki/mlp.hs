@@ -1,4 +1,3 @@
-{-#LANGUAGE BangPatterns#-}
 module Network.Network
   ( Network
   , Layer(..)
@@ -20,7 +19,7 @@ import Numeric.LinearAlgebra
 import qualified Numeric.LinearAlgebra as LA
 import System.Random (randomRIO)
 import Util (enumerate, mse)
-import Control.DeepSeq (deepseq, NFData, rnf)
+import Control.DeepSeq (NFData, rnf)
 
 -- The layer type. The parameters in the network are stored on a layer basis.
 -- weights     = weight matrix
@@ -35,8 +34,8 @@ data Layer = Layer
   , activation :: !Activation
   }
 
-instance NFData Layer where
-  rnf (Layer a ws bs s) = a `seq` ws `seq` bs `seq` s `seq` ()
+--instance NFData Layer where
+  --rnf (Layer a ws bs s) = a `seq` ws `seq` bs `seq` s `seq` ()
 
 -- A network is just a list of layers.
 type Network = [Layer]
@@ -92,7 +91,8 @@ fit x n =
 -- Surprisingly short code for a forward propagation function - `scanl` iterates through the layers and activates them with the output of the previous layer.
 -- It's equivalent to `scanl (flip activate) input network`, where `input` is the initial value that `activate` gets called on.
 forwardProp :: Matrix R -> Network -> [Matrix R]
-forwardProp = scanl (\x l -> function (activation l) (weights l LA.<> x + biases l))
+forwardProp = scanl activate
+  where activate x l = function (activation l) (weights l LA.<> x + biases l)
 
 -- (l, input, nextL) = (the current layer, the output of the from the previous layer, the next layer
 calculateDelta :: (Layer, Matrix R, Layer) -> Matrix R -> Matrix R

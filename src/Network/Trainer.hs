@@ -42,7 +42,7 @@ instance Trainer BGDTrainer where
       f gs = let len = fromIntegral (length gs) in foldl1 (\(accW, accB) (w, b) -> (accW + w / len, accB + b / len)) gs
 
       -- Calculate the average gradients and apply gradient clipping.
-      totalParams = clipGradients $ map f $ transpose gradients
+      totalParams = {-clipGradients $-} map f $ transpose gradients
 
 -- Helper function to initialize a BGD trainer.
 bgdTrainer :: R -> Int -> BGDTrainer
