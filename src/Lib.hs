@@ -127,10 +127,10 @@ trainMNIST = do
   n1 <- initialize [400, 10] [relu, relu, softmax]
   n2 <- fit (head $ matrixToRows $ fst $ head cs) n1
 
-  let t = bgdTrainer (0.1 / fromIntegral batchSize) 1
+  let t = bgdTrainer (0.2 / fromIntegral batchSize) 1
   putStrLn "Network initialized."
 
-  let es = [1..3 :: Int]
+  let es = [1..5 :: Int]
   putStrLn "Loading test dataset..."
   (testInputs, testOutputs) <- loadTestMNIST
   testInputs `seq` testOutputs `seq` putStrLn "Test dataset loaded."
@@ -141,13 +141,13 @@ trainMNIST = do
 
     -- Learning rate decay
     let newLr = learningRate t / (1 + 0.001 * (fromIntegral (epochs t) - 1))
-    --shuffled <- shuffle cs
+    shuffled <- shuffle cs
     let newTrainer = t {learningRate = newLr }
-    let evalCs = take 1000 cs
+    let evalCs = take 1000 shuffled
     let (evalX, evalY) = (connect (map fst evalCs) batchSize 784, connect (map snd evalCs) batchSize 10)
     print $ size evalX
     print $ size evalY
-    net' <- trainEpoch newTrainer cs net
+    net' <- trainEpoch newTrainer shuffled net
     putStrLn "Test dataset evaluation:"
     hFlush stdout
     Lib.eval net' (testInputs, testOutputs)
