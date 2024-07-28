@@ -17,7 +17,7 @@ import Control.DeepSeq (rnf)
 --import Control.Parallel.Strategies (parListChunk, using, rdeepseq, rseq, parMap)
 
 batchSize :: Int
-batchSize = 10
+batchSize = 30
 
 chunks :: Int -> [a] -> [[a]]
 chunks _ [] = []
@@ -124,13 +124,13 @@ trainMNIST = do
   cs <- loadMNIST
   putStrLn "Dataset loaded."
   putStrLn "Initializing network..."
-  n1 <- initialize [400, 10] [relu, relu, softmax]
+  n1 <- initialize [512, 256, 128, 10] [relu, relu, relu, relu]
   n2 <- fit (head $ matrixToRows $ fst $ head cs) n1
 
-  let t = bgdTrainer (0.2 / fromIntegral batchSize) 1
+  let t = bgdTrainer (0.9 / fromIntegral batchSize) 1
   putStrLn "Network initialized."
 
-  let es = [1..5 :: Int]
+  let es = [1..10 :: Int]
   putStrLn "Loading test dataset..."
   (testInputs, testOutputs) <- loadTestMNIST
   testInputs `seq` testOutputs `seq` putStrLn "Test dataset loaded."
@@ -140,7 +140,7 @@ trainMNIST = do
     hFlush stdout
 
     -- Learning rate decay
-    let newLr = learningRate t / (1 + 0.001 * (fromIntegral (epochs t) - 1))
+    let newLr = learningRate t / (1 + 0.0001 * (fromIntegral (epochs t) - 1))
     shuffled <- shuffle cs
     let newTrainer = t {learningRate = newLr }
     let evalCs = take 1000 shuffled

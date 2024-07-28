@@ -1,5 +1,5 @@
 - [ ] Mini-batch SGD interface for Trainer (this is really hard for some reason)
-- [ ] Improve MNIST performance by A LOT (current: 8808/10000) (batch normalization? dropout? ADAM? increasing network complexity? hyperparameter tuning)
+- [ ] Improve MNIST performance by A LOT (current: 9096/10000) (batch normalization? dropout? ADAM? increasing network complexity? hyperparameter tuning)
 - [ ] Add proper parallelization
 - [ ] Proper evaluation framework for the network
 - [ ] Optimizers, gradient boosting, momentum, etc.?
